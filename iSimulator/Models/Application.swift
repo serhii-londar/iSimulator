@@ -110,6 +110,53 @@ extension Application {
         })
     }
     
+    func sendPushNotification(payloadURL: URL) {
+        if device.state == .shutdown {
+            try? device.boot()
+        }
+        shell("/usr/bin/xcrun", arguments: "simctl", "push", device.udid, bundleID, payloadURL.path)
+    }
+
+    // MARK: - Sandbox Snapshots
+    var snapshotsDirectoryURL: URL {
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let dir = appSupport.appendingPathComponent("iSimulator/Snapshots").appendingPathComponent(bundleID)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
+        return dir
+    }
+
+    func listSnapshots() -> [String] {
+        let contents = (try? FileManager.default.contentsOfDirectory(at: snapshotsDirectoryURL, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
+        return contents.map { $0.lastPathComponent }
+    }
+
+    func saveSnapshot(named name: String) {
+        let snapshotURL = snapshotsDirectoryURL.appendingPathComponent(name)
+        if FileManager.default.fileExists(atPath: snapshotURL.path) {
+            try? FileManager.default.removeItem(at: snapshotURL)
+        }
+        try? FileManager.default.copyItem(at: sandboxDirUrl, to: snapshotURL)
+    }
+
+    func restoreSnapshot(named name: String) {
+        let snapshotURL = snapshotsDirectoryURL.appendingPathComponent(name)
+        guard FileManager.default.fileExists(atPath: snapshotURL.path) else { return }
+        
+        terminate()
+        resetContent()
+        
+        let contents = (try? FileManager.default.contentsOfDirectory(at: snapshotURL, includingPropertiesForKeys: nil, options: [])) ?? []
+        contents.forEach { itemURL in
+            let destURL = sandboxDirUrl.appendingPathComponent(itemURL.lastPathComponent)
+            try? FileManager.default.copyItem(at: itemURL, to: destURL)
+        }
+    }
+
+    func deleteSnapshot(named name: String) {
+        let snapshotURL = snapshotsDirectoryURL.appendingPathComponent(name)
+        try? FileManager.default.removeItem(at: snapshotURL)
+    }
+    
     func size(_ closure: @escaping (_ sandboxSize: UInt64, _ bundleSize: UInt64)-> Void) {
         DispatchQueue.global().async {
             //            closure(self.sizeOfDirectory(self.sandboxDirUrl), self.sizeOfDirectory(self.bundleDirUrl))

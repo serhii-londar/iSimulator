@@ -27,6 +27,7 @@ class AppMenu: NSMenu {
     private func addCustomItem() {
         let actionTypes: [AppActionable.Type] = [AppShowInFinderAction.self,
                                                  AppLaunchAction.self,
+                                                 AppSendPushAction.self,
                                                  AppResetAction.self,
                                                  AppTerminateAction.self,
                                                  AppUninstallAction.self]
@@ -42,13 +43,13 @@ class AppMenu: NSMenu {
             self.addItem(item)
         }
         self.insertItem(createOtherSimLunchAppItem(), at: 2)
-        if let item = createRealmAppItem() {
-            self.insertItem(item, at: 3)
+        self.addItem(createSnapshotMenuItem())
+        if let item = createDatabaseInspectorItem() {
+            self.addItem(item)
         }
-//        let item = NSMenuItem()
-//        item.view = AppInfoView(application: app)
-//        item.isEnabled = true
-//        self.addItem(item)
+        if let item = createPreferencesInspectorItem() {
+            self.addItem(item)
+        }
     }
     
     func createOtherSimLunchAppItem() -> NSMenuItem {
@@ -84,6 +85,105 @@ class AppMenu: NSMenu {
         return otherSimLunchAppItem
     }
     
+    func createSnapshotMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "Sandbox Snapshots", action: nil, keyEquivalent: "")
+        let submenu = NSMenu()
+
+        let saveAction = AppSaveSnapshotAction(app)
+        let saveItem = NSMenuItem(title: saveAction.title, action: #selector(AppSaveSnapshotAction.perform), keyEquivalent: "")
+        saveItem.target = saveAction as AnyObject
+        saveItem.representedObject = saveAction
+        submenu.addItem(saveItem)
+
+        let snapshots = app.listSnapshots()
+        if !snapshots.isEmpty {
+            submenu.addItem(NSMenuItem.separator())
+            
+            let restoreItem = NSMenuItem(title: "Restore Snapshot", action: nil, keyEquivalent: "")
+            let restoreSubmenu = NSMenu()
+            snapshots.forEach { name in
+                let action = AppRestoreSnapshotAction(app: app, snapshotName: name)
+                let menuItem = NSMenuItem(title: name, action: #selector(AppRestoreSnapshotAction.perform), keyEquivalent: "")
+                menuItem.target = action as AnyObject
+                menuItem.representedObject = action
+                restoreSubmenu.addItem(menuItem)
+            }
+            restoreItem.submenu = restoreSubmenu
+            submenu.addItem(restoreItem)
+
+            let deleteItem = NSMenuItem(title: "Delete Snapshot", action: nil, keyEquivalent: "")
+            let deleteSubmenu = NSMenu()
+            snapshots.forEach { name in
+                let action = AppDeleteSnapshotAction(app: app, snapshotName: name)
+                let menuItem = NSMenuItem(title: name, action: #selector(AppDeleteSnapshotAction.perform), keyEquivalent: "")
+                menuItem.target = action as AnyObject
+                menuItem.representedObject = action
+                deleteSubmenu.addItem(menuItem)
+            }
+            deleteItem.submenu = deleteSubmenu
+            submenu.addItem(deleteItem)
+        }
+
+        item.submenu = submenu
+        return item
+    }
+
+    func createDatabaseInspectorItem() -> NSMenuItem? {
+        let all = FileManager.default.enumerator(at: app.sandboxDirUrl, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles, .skipsPackageDescendants])
+        var dbFilePaths: [String] = []
+        let validExtensions = ["sqlite", "db", "storedata", "realm"]
+        while let fileUrl = all?.nextObject() as? URL {
+            if validExtensions.contains(fileUrl.pathExtension.lowercased()) {
+                dbFilePaths.append(fileUrl.path)
+            }
+        }
+        guard !dbFilePaths.isEmpty else { return nil }
+        
+        if dbFilePaths.count == 1 {
+            let path = dbFilePaths[0]
+            let filename = URL(fileURLWithPath: path).lastPathComponent
+            let action = AppFileOpenAction(title: "Open Database (\(filename))", path: path)
+            let item = NSMenuItem(title: action.title, action: #selector(AppFileOpenAction.perform), keyEquivalent: "")
+            item.target = action as AnyObject
+            item.representedObject = action
+            return item
+        } else {
+            let item = NSMenuItem(title: "Open Database", action: nil, keyEquivalent: "")
+            let submenu = NSMenu()
+            dbFilePaths.forEach { path in
+                let filename = URL(fileURLWithPath: path).lastPathComponent
+                let action = AppFileOpenAction(title: filename, path: path)
+                let menuItem = NSMenuItem(title: action.title, action: #selector(AppFileOpenAction.perform), keyEquivalent: "")
+                menuItem.target = action as AnyObject
+                menuItem.representedObject = action
+                submenu.addItem(menuItem)
+            }
+            item.submenu = submenu
+            return item
+        }
+    }
+
+    func createPreferencesInspectorItem() -> NSMenuItem? {
+        let prefsDir = app.sandboxDirUrl.appendingPathComponent("Library/Preferences")
+        guard let contents = try? FileManager.default.contentsOfDirectory(at: prefsDir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else {
+            return nil
+        }
+        let plistFiles = contents.filter { $0.pathExtension.lowercased() == "plist" }
+        guard !plistFiles.isEmpty else { return nil }
+
+        let item = NSMenuItem(title: "Preferences (.plist)", action: nil, keyEquivalent: "")
+        let submenu = NSMenu()
+        plistFiles.forEach { fileURL in
+            let action = AppFileOpenAction(title: fileURL.lastPathComponent, path: fileURL.path)
+            let menuItem = NSMenuItem(title: action.title, action: #selector(AppFileOpenAction.perform), keyEquivalent: "")
+            menuItem.target = action as AnyObject
+            menuItem.representedObject = action
+            submenu.addItem(menuItem)
+        }
+        item.submenu = submenu
+        return item
+    }
+
     func createRealmAppItem() -> NSMenuItem? {
         let all = FileManager.default.enumerator(at: app.sandboxDirUrl, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles, .skipsPackageDescendants])
         var realmFilePaths: [String] = []
@@ -287,6 +387,124 @@ class AppRealmAction {
     
     @objc func perform() {
         NSWorkspace.shared.openFile(realmPath)
+    }
+}
+
+class AppFileOpenAction {
+    let title: String
+    let path: String
+    
+    init(title: String, path: String) {
+        self.title = title
+        self.path = path
+    }
+    
+    @objc func perform() {
+        NSWorkspace.shared.openFile(path)
+    }
+}
+
+class AppSendPushAction: AppActionable {
+    var app: Application
+    required init(_ app: Application) {
+        self.app = app
+    }
+    var title: String = "Send Push Notification (.apns)..."
+    var isAvailable: Bool = true
+    var icon: NSImage?
+    
+    @objc func perform() {
+        let openPanel = NSOpenPanel()
+        openPanel.title = "Select APNS or JSON Payload File"
+        openPanel.allowedFileTypes = ["apns", "json"]
+        openPanel.allowsMultipleSelection = false
+        openPanel.canChooseDirectories = false
+        
+        NSApp.activate(ignoringOtherApps: true)
+        openPanel.begin { response in
+            if response == .OK, let url = openPanel.url {
+                self.app.sendPushNotification(payloadURL: url)
+            }
+        }
+    }
+}
+
+class AppSaveSnapshotAction: AppActionable {
+    var app: Application
+    required init(_ app: Application) {
+        self.app = app
+    }
+    var title: String = "Save Sandbox Snapshot..."
+    var isAvailable: Bool = true
+    var icon: NSImage?
+
+    @objc func perform() {
+        let alert = NSAlert()
+        alert.messageText = "Save Sandbox Snapshot"
+        alert.informativeText = "Enter a name for this snapshot of '\(app.bundleDisplayName)':"
+        
+        let inputTextField = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+        inputTextField.placeholderString = "e.g. Logged In State"
+        alert.accessoryView = inputTextField
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+
+        NSApp.activate(ignoringOtherApps: true)
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            let name = inputTextField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !name.isEmpty {
+                app.saveSnapshot(named: name)
+            }
+        }
+    }
+}
+
+class AppRestoreSnapshotAction {
+    let app: Application
+    let snapshotName: String
+    
+    init(app: Application, snapshotName: String) {
+        self.app = app
+        self.snapshotName = snapshotName
+    }
+
+    @objc func perform() {
+        let alert = NSAlert()
+        alert.messageText = "Restore Sandbox Snapshot"
+        alert.informativeText = "Are you sure you want to restore '\(snapshotName)'? Current sandbox data will be replaced."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Restore")
+        alert.addButton(withTitle: "Cancel")
+
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn {
+            app.restoreSnapshot(named: snapshotName)
+        }
+    }
+}
+
+class AppDeleteSnapshotAction {
+    let app: Application
+    let snapshotName: String
+
+    init(app: Application, snapshotName: String) {
+        self.app = app
+        self.snapshotName = snapshotName
+    }
+
+    @objc func perform() {
+        let alert = NSAlert()
+        alert.messageText = "Delete Snapshot"
+        alert.informativeText = "Are you sure you want to delete snapshot '\(snapshotName)'?"
+        alert.alertStyle = .critical
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn {
+            app.deleteSnapshot(named: snapshotName)
+        }
     }
 }
 
