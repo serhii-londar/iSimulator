@@ -157,6 +157,49 @@ extension Application {
         try? FileManager.default.removeItem(at: snapshotURL)
     }
     
+    // MARK: - Privacy & Permissions
+    enum PrivacyService: String, CaseIterable {
+        case all = "all"
+        case camera = "camera"
+        case photos = "photos"
+        case contacts = "contacts"
+        case microphone = "microphone"
+        case location = "location"
+        case calendar = "calendar"
+        case reminders = "reminders"
+        
+        var displayName: String {
+            switch self {
+            case .all: return "All Permissions"
+            case .camera: return "Camera"
+            case .photos: return "Photos"
+            case .contacts: return "Contacts"
+            case .microphone: return "Microphone"
+            case .location: return "Location"
+            case .calendar: return "Calendar"
+            case .reminders: return "Reminders"
+            }
+        }
+    }
+
+    enum PrivacyAction: String {
+        case grant
+        case deny
+        case reset
+        
+        var displayName: String {
+            switch self {
+            case .grant: return "Grant"
+            case .deny: return "Deny"
+            case .reset: return "Reset"
+            }
+        }
+    }
+
+    func setPrivacy(service: PrivacyService, action: PrivacyAction) {
+        shell("/usr/bin/xcrun", arguments: "simctl", "privacy", device.udid, action.rawValue, service.rawValue, bundleID)
+    }
+    
     func size(_ closure: @escaping (_ sandboxSize: UInt64, _ bundleSize: UInt64)-> Void) {
         DispatchQueue.global().async {
             //            closure(self.sizeOfDirectory(self.sandboxDirUrl), self.sizeOfDirectory(self.bundleDirUrl))

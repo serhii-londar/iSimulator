@@ -44,6 +44,7 @@ class AppMenu: NSMenu {
         }
         self.insertItem(createOtherSimLunchAppItem(), at: 2)
         self.addItem(createSnapshotMenuItem())
+        self.addItem(createPrivacyMenuItem())
         if let item = createDatabaseInspectorItem() {
             self.addItem(item)
         }
@@ -180,6 +181,52 @@ class AppMenu: NSMenu {
             menuItem.representedObject = action
             submenu.addItem(menuItem)
         }
+        item.submenu = submenu
+        return item
+    }
+
+    func createPrivacyMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "Privacy & Permissions", action: nil, keyEquivalent: "")
+        let submenu = NSMenu()
+
+        let grantAllAction = AppPrivacyAction(app: app, service: .all, action: .grant)
+        let grantAllItem = NSMenuItem(title: "Grant All Permissions", action: #selector(AppPrivacyAction.perform), keyEquivalent: "")
+        grantAllItem.target = grantAllAction as AnyObject
+        grantAllItem.representedObject = grantAllAction
+        submenu.addItem(grantAllItem)
+
+        let denyAllAction = AppPrivacyAction(app: app, service: .all, action: .deny)
+        let denyAllItem = NSMenuItem(title: "Deny All Permissions", action: #selector(AppPrivacyAction.perform), keyEquivalent: "")
+        denyAllItem.target = denyAllAction as AnyObject
+        denyAllItem.representedObject = denyAllAction
+        submenu.addItem(denyAllItem)
+
+        let resetAllAction = AppPrivacyAction(app: app, service: .all, action: .reset)
+        let resetAllItem = NSMenuItem(title: "Reset All Permissions", action: #selector(AppPrivacyAction.perform), keyEquivalent: "")
+        resetAllItem.target = resetAllAction as AnyObject
+        resetAllItem.representedObject = resetAllAction
+        submenu.addItem(resetAllItem)
+
+        submenu.addItem(NSMenuItem.separator())
+
+        let services: [Application.PrivacyService] = [.camera, .photos, .contacts, .microphone, .location, .calendar, .reminders]
+        services.forEach { service in
+            let serviceItem = NSMenuItem(title: service.displayName, action: nil, keyEquivalent: "")
+            let serviceSubmenu = NSMenu()
+            
+            let actions: [Application.PrivacyAction] = [.grant, .deny, .reset]
+            actions.forEach { act in
+                let privacyAction = AppPrivacyAction(app: app, service: service, action: act)
+                let menuItem = NSMenuItem(title: act.displayName, action: #selector(AppPrivacyAction.perform), keyEquivalent: "")
+                menuItem.target = privacyAction as AnyObject
+                menuItem.representedObject = privacyAction
+                serviceSubmenu.addItem(menuItem)
+            }
+            
+            serviceItem.submenu = serviceSubmenu
+            submenu.addItem(serviceItem)
+        }
+
         item.submenu = submenu
         return item
     }
@@ -566,4 +613,21 @@ final class AppInfoView: NSView {
     }
     
 }
+
+class AppPrivacyAction {
+    let app: Application
+    let service: Application.PrivacyService
+    let action: Application.PrivacyAction
+
+    init(app: Application, service: Application.PrivacyService, action: Application.PrivacyAction) {
+        self.app = app
+        self.service = service
+        self.action = action
+    }
+
+    @objc func perform() {
+        app.setPrivacy(service: service, action: action)
+    }
+}
+
 
