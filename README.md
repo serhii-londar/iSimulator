@@ -57,6 +57,19 @@ Xcode.app: **Preferences -> Locations -> Command line tools**
 <img src="https://raw.githubusercontent.com/wigl/iSimulator/master/preview/share.jpg" alt="Launch one application for other simulator." style="width: 300px;"/>
 
 
+## Building & Publishing Releases
+
+To build the app and publish a release to GitHub, run:
+
+```bash
+./scripts/publish_release.sh <version>
+```
+
+Options:
+- `--dry-run`: Build and package without tagging or creating a GitHub release.
+- `--draft`: Publish as draft release.
+- `--notes "notes"`: Provide custom release notes.
+
 ## License
 
 iSimulator is released under the MIT license. [See LICENSE](https://github.com/wigl/iSimulator/blob/master/LICENSE) for details.
