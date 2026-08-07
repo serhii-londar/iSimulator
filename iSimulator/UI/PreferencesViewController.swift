@@ -143,6 +143,37 @@ struct PreferencesSwiftUIView: View {
                 Text("General")
             }
             
+            VStack(alignment: .leading, spacing: 16) {
+                Text("UI & Shortcuts")
+                    .font(.headline)
+                
+                Button("Open Command Palette (⌘K)") {
+                    CommandPaletteWindowController.shared.show()
+                }
+                
+                Divider()
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Pinned Favorites")
+                        .font(.subheadline)
+                        .bold()
+                    
+                    Text("Reset all pinned simulators and applications from top menu bar section.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Button("Clear All Pinned Items") {
+                        FavoritesManager.shared.clearAll()
+                    }
+                }
+                
+                Spacer()
+            }
+            .padding()
+            .tabItem {
+                Text("UI & Shortcuts")
+            }
+            
             VStack(spacing: 12) {
                 Text(Bundle.main.infoDictionary?["CFBundleDisplayName"] as? String ?? "iSimulator")
                     .font(.title)

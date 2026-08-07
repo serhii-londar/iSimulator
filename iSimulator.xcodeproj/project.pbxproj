@@ -30,9 +30,12 @@
 		315A809D22C90616005C2493 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 315A809C22C90616005C2493 /* AppGroup.swift */; };
 		31CD6D0221B2817900E49DC0 /* RootLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31CD6D0121B2817900E49DC0 /* RootLink.swift */; };
 		31CD6D0421B2942300E49DC0 /* ApplicationCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31CD6D0321B2942300E49DC0 /* ApplicationCache.swift */; };
+		88FA00012C63000000000002 /* FavoritesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88FA00012C63000000000001 /* FavoritesManager.swift */; };
+		88FA00012C63000000000004 /* ToastManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88FA00012C63000000000003 /* ToastManager.swift */; };
+		88FA00012C63000000000006 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88FA00012C63000000000005 /* CommandPaletteView.swift */; };
+		88FA00012C63000000000008 /* CommandPaletteWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88FA00012C63000000000007 /* CommandPaletteWindowController.swift */; };
+		88FA00012C6300000000000A /* PlistInspectorWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88FA00012C63000000000009 /* PlistInspectorWindowController.swift */; };
 /* End PBXBuildFile section */
-
-/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		291157AD1FB5501C000EE94F /* DevcieMenuItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevcieMenuItem.swift; sourceTree = "<group>"; };
@@ -60,6 +63,11 @@
 		315A809C22C90616005C2493 /* AppGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppGroup.swift; sourceTree = "<group>"; };
 		31CD6D0121B2817900E49DC0 /* RootLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootLink.swift; sourceTree = "<group>"; };
 		31CD6D0321B2942300E49DC0 /* ApplicationCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationCache.swift; sourceTree = "<group>"; };
+		88FA00012C63000000000001 /* FavoritesManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FavoritesManager.swift; sourceTree = "<group>"; };
+		88FA00012C63000000000003 /* ToastManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ToastManager.swift; sourceTree = "<group>"; };
+		88FA00012C63000000000005 /* CommandPaletteView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CommandPaletteView.swift; sourceTree = "<group>"; };
+		88FA00012C63000000000007 /* CommandPaletteWindowController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CommandPaletteWindowController.swift; sourceTree = "<group>"; };
+		88FA00012C63000000000009 /* PlistInspectorWindowController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PlistInspectorWindowController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -87,6 +95,7 @@
 		29157C581F4D62940069BDB6 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				88FA00012C63000000000001 /* FavoritesManager.swift */,
 				29157C5F1F4D6BFE0069BDB6 /* TotalModel.swift */,
 				29157C5B1F4D66110069BDB6 /* Runtime.swift */,
 				29157C591F4D65D70069BDB6 /* DeviceType.swift */,
@@ -133,6 +142,10 @@
 		292EADB21F458C89009FC1ED /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				88FA00012C63000000000003 /* ToastManager.swift */,
+				88FA00012C63000000000005 /* CommandPaletteView.swift */,
+				88FA00012C63000000000007 /* CommandPaletteWindowController.swift */,
+				88FA00012C63000000000009 /* PlistInspectorWindowController.swift */,
 				292EADB51F458F5C009FC1ED /* BarManager.swift */,
 				29157C671F4E7C9B0069BDB6 /* AppMenuItem.swift */,
 				293B2D411F4EA26B0009DA18 /* AppMenu.swift */,
@@ -240,6 +253,11 @@
 				31CD6D0421B2942300E49DC0 /* ApplicationCache.swift in Sources */,
 				29B591981F581513006CDEC0 /* FileWatch.swift in Sources */,
 				315A809D22C90616005C2493 /* AppGroup.swift in Sources */,
+				88FA00012C63000000000002 /* FavoritesManager.swift in Sources */,
+				88FA00012C63000000000004 /* ToastManager.swift in Sources */,
+				88FA00012C63000000000006 /* CommandPaletteView.swift in Sources */,
+				88FA00012C63000000000008 /* CommandPaletteWindowController.swift in Sources */,
+				88FA00012C6300000000000A /* PlistInspectorWindowController.swift in Sources */,
 				292EADB61F458F5C009FC1ED /* BarManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -375,16 +393,15 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 25;
+				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-				);
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				INFOPLIST_FILE = iSimulator/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
-				MARKETING_VERSION = 3.3.0;
+				MARKETING_VERSION = 4.0.0;
 				OTHER_CODE_SIGN_FLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = niels.jin.iSimulator;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -401,15 +418,14 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 25;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-				);
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				INFOPLIST_FILE = iSimulator/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 10.15;
-				MARKETING_VERSION = 3.3.0;
+				MARKETING_VERSION = 4.0.0;
 				OTHER_CODE_SIGN_FLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = niels.jin.iSimulator;
 				PRODUCT_NAME = "$(TARGET_NAME)";

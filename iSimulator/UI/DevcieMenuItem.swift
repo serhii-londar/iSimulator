@@ -45,7 +45,8 @@ class DeviceMenuItem: NSMenuItem {
 }
 
 private func createDeviceActionItems(_ device: Device) -> [NSMenuItem] {
-    let actionTypes: [DeviceActionable.Type] = [DeviceStateAction.self,
+    let actionTypes: [DeviceActionable.Type] = [DevicePinAction.self,
+                                                DeviceStateAction.self,
                                                 DeviceUnpairAction.self,
                                                 DeviceEraseAction.self,
                                                 DeviceDeleteAction.self]
@@ -344,6 +345,8 @@ class DeviceAppearanceAction: DeviceActionable {
 
     @objc func perform() {
         device.setAppearance(appearance)
+        let modeName = appearance == .light ? "Light Mode" : "Dark Mode"
+        ToastManager.shared.showToast(message: "\(device.name): Switched to \(modeName)", iconName: appearance == .light ? "sun.max.fill" : "moon.fill")
     }
 }
 
@@ -371,9 +374,31 @@ class DeviceStatusBarAction: DeviceActionable {
     @objc func perform() {
         if isOverride {
             device.overrideStatusBar()
+            ToastManager.shared.showToast(message: "\(device.name): Clean Status Bar Applied", iconName: "clock.fill")
         } else {
             device.clearStatusBar()
+            ToastManager.shared.showToast(message: "\(device.name): Status Bar Overrides Cleared", iconName: "clock")
         }
+    }
+}
+
+class DevicePinAction: DeviceActionable {
+    let device: Device
+    let title: String
+    var isAvailable: Bool = true
+    var icon: NSImage?
+    
+    required init(_ device: Device) {
+        self.device = device
+        let isPinned = FavoritesManager.shared.isPinned(device: device)
+        self.title = isPinned ? "Unpin Simulator" : "Pin Simulator to Top"
+        if #available(macOS 11.0, *) {
+            self.icon = NSImage(systemSymbolName: isPinned ? "star.slash" : "star.fill", accessibilityDescription: nil)
+        }
+    }
+    
+    @objc func perform() {
+        FavoritesManager.shared.togglePin(device: device)
     }
 }
 

@@ -25,7 +25,8 @@ class AppMenu: NSMenu {
     }
     
     private func addCustomItem() {
-        let actionTypes: [AppActionable.Type] = [AppShowInFinderAction.self,
+        let actionTypes: [AppActionable.Type] = [AppPinAction.self,
+                                                 AppShowInFinderAction.self,
                                                  AppLaunchAction.self,
                                                  AppSendPushAction.self,
                                                  AppResetAction.self,
@@ -175,11 +176,23 @@ class AppMenu: NSMenu {
         let item = NSMenuItem(title: "Preferences (.plist)", action: nil, keyEquivalent: "")
         let submenu = NSMenu()
         plistFiles.forEach { fileURL in
-            let action = AppFileOpenAction(title: fileURL.lastPathComponent, path: fileURL.path)
-            let menuItem = NSMenuItem(title: action.title, action: #selector(AppFileOpenAction.perform), keyEquivalent: "")
-            menuItem.target = action as AnyObject
-            menuItem.representedObject = action
-            submenu.addItem(menuItem)
+            let plistMenuItem = NSMenuItem(title: fileURL.lastPathComponent, action: nil, keyEquivalent: "")
+            let plistSubmenu = NSMenu()
+            
+            let inspectAction = AppInspectPlistAction(title: fileURL.lastPathComponent, path: fileURL.path)
+            let inspectItem = NSMenuItem(title: "Inspect in iSimulator", action: #selector(AppInspectPlistAction.perform), keyEquivalent: "")
+            inspectItem.target = inspectAction as AnyObject
+            inspectItem.representedObject = inspectAction
+            plistSubmenu.addItem(inspectItem)
+            
+            let openAction = AppFileOpenAction(title: "Open External Editor", path: fileURL.path)
+            let openItem = NSMenuItem(title: openAction.title, action: #selector(AppFileOpenAction.perform), keyEquivalent: "")
+            openItem.target = openAction as AnyObject
+            openItem.representedObject = openAction
+            plistSubmenu.addItem(openItem)
+            
+            plistMenuItem.submenu = plistSubmenu
+            submenu.addItem(plistMenuItem)
         }
         item.submenu = submenu
         return item
@@ -273,6 +286,28 @@ protocol AppActionable {
     var icon: NSImage? { get }
     var isAvailable: Bool { get }
     func perform()
+}
+
+class AppPinAction: AppActionable {
+    var app: Application
+    required init(_ app: Application) {
+        self.app = app
+    }
+    var title: String {
+        return FavoritesManager.shared.isPinned(app: app) ? "Unpin App" : "Pin App to Top"
+    }
+    var isAvailable: Bool = true
+    var icon: NSImage? {
+        if #available(macOS 11.0, *) {
+            let isPinned = FavoritesManager.shared.isPinned(app: app)
+            return NSImage(systemSymbolName: isPinned ? "star.slash" : "star.fill", accessibilityDescription: nil)
+        }
+        return nil
+    }
+    
+    @objc func perform() {
+        FavoritesManager.shared.togglePin(app: app)
+    }
 }
 
 class AppShowInFinderAction: AppActionable {
@@ -448,6 +483,24 @@ class AppFileOpenAction {
     
     @objc func perform() {
         NSWorkspace.shared.openFile(path)
+    }
+}
+
+class AppInspectPlistAction {
+    let title: String
+    let path: String
+    
+    init(title: String, path: String) {
+        self.title = title
+        self.path = path
+    }
+    
+    @objc func perform() {
+        if #available(macOS 10.15, *) {
+            PlistInspectorWindowController.show(title: title, plistPath: path)
+        } else {
+            NSWorkspace.shared.openFile(path)
+        }
     }
 }
 

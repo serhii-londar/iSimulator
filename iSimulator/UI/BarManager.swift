@@ -109,6 +109,25 @@ class BarManager {
             })
         }
         let sortKeys = hasAppDeviceItemDic.keys.sorted()
+        var pinnedItems: [NSMenuItem] = []
+        
+        TotalModel.default.runtimes.forEach { r in
+            r.devices.forEach { device in
+                if FavoritesManager.shared.isPinned(device: device) {
+                    let item = DeviceMenuItem(device)
+                    pinnedItems.append(item)
+                }
+            }
+        }
+        
+        if !pinnedItems.isEmpty {
+            let pinnedHeader = NSMenuItem(title: "⭐️ Pinned Simulators", action: nil, keyEquivalent: "")
+            pinnedHeader.isEnabled = false
+            items.append(pinnedHeader)
+            items.append(contentsOf: pinnedItems)
+            items.append(NSMenuItem.separator())
+        }
+        
         for key in sortKeys{
             items.append(contentsOf: hasAppDeviceItemDic[key]!)
         }
@@ -138,6 +157,14 @@ class BarManager {
     //MARK: - Common Items and Actions
     private lazy var commonItems: [NSMenuItem] = {
         var items: [NSMenuItem] = []
+        let paletteMenu = NSMenuItem(title: "Command Palette...", action: #selector(openCommandPalette(_:)), keyEquivalent: "k")
+        paletteMenu.target = self
+        if #available(macOS 11.0, *) {
+            paletteMenu.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil)
+        }
+        items.append(paletteMenu)
+        items.append(NSMenuItem.separator())
+        
         let preMenu = NSMenuItem(title: "Preferences...", action: #selector(preference(_:)), keyEquivalent: ",")
         preMenu.target = self
         items.append(preMenu)
@@ -149,6 +176,10 @@ class BarManager {
         items.append(quitMenu)
         return items
     }()
+    
+    @objc private func openCommandPalette(_ sender: Any) {
+        CommandPaletteWindowController.shared.show()
+    }
     
     @objc private func refresh(_ sender: Any) {
         TotalModel.default.isForceUpdate = true
