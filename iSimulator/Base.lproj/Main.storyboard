@@ -669,7 +669,7 @@
                         <windowPositionMask key="initialPositionMask" topStrut="YES" bottomStrut="YES"/>
                         <rect key="contentRect" x="0.0" y="466" width="480" height="270"/>
                         <rect key="screenRect" x="0.0" y="0.0" width="1440" height="877"/>
-                        <toolbar key="toolbar" implicitIdentifier="4BA60621-F1D4-49DF-813E-B6E430514644" autosavesConfiguration="NO" displayMode="iconAndLabel" sizeMode="regular" id="Odm-yx-S70">
+                        <toolbar key="toolbar" implicitIdentifier="4BA60621-F1D4-49DF-813E-B6E430514644" autosavesConfiguration="NO" displayMode="iconAndLabel" id="Odm-yx-S70">
                             <allowedToolbarItems>
                                 <toolbarItem implicitItemIdentifier="NSToolbarFlexibleSpaceItem" id="r0X-PE-s76"/>
                                 <toolbarItem implicitItemIdentifier="3B82C268-CF40-48DA-B0FE-FE0135BD6AB5" explicitItemIdentifier="General" label="General" paletteLabel="General" tag="-1" image="NSPreferencesGeneral" selectable="YES" id="M2q-oD-6og">
