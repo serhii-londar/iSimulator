@@ -58,6 +58,54 @@ private func createDeviceActionItems(_ device: Device) -> [NSMenuItem] {
         item.representedObject = action
         return item
     }
+    
+    let openUrlAction = DeviceOpenURLAction(device)
+    let openUrlItem = NSMenuItem(title: openUrlAction.title, action: #selector(DeviceOpenURLAction.perform), keyEquivalent: "")
+    openUrlItem.indentationLevel = 1
+    openUrlItem.target = openUrlAction as AnyObject
+    openUrlItem.representedObject = openUrlAction
+    items.insert(openUrlItem, at: 1)
+
+    if device.state == .booted {
+        let appearanceItem = NSMenuItem(title: "Appearance", action: nil, keyEquivalent: "")
+        appearanceItem.indentationLevel = 1
+        let appearanceSubmenu = NSMenu()
+        
+        let lightAction = DeviceAppearanceAction(device: device, appearance: .light)
+        let lightItem = NSMenuItem(title: lightAction.title, action: #selector(DeviceAppearanceAction.perform), keyEquivalent: "")
+        lightItem.target = lightAction as AnyObject
+        lightItem.representedObject = lightAction
+        appearanceSubmenu.addItem(lightItem)
+        
+        let darkAction = DeviceAppearanceAction(device: device, appearance: .dark)
+        let darkItem = NSMenuItem(title: darkAction.title, action: #selector(DeviceAppearanceAction.perform), keyEquivalent: "")
+        darkItem.target = darkAction as AnyObject
+        darkItem.representedObject = darkAction
+        appearanceSubmenu.addItem(darkItem)
+        
+        appearanceItem.submenu = appearanceSubmenu
+        items.insert(appearanceItem, at: 2)
+
+        let statusBarItem = NSMenuItem(title: "Status Bar", action: nil, keyEquivalent: "")
+        statusBarItem.indentationLevel = 1
+        let statusBarSubmenu = NSMenu()
+
+        let setStatusAction = DeviceStatusBarAction(device: device, isOverride: true)
+        let setStatusItem = NSMenuItem(title: setStatusAction.title, action: #selector(DeviceStatusBarAction.perform), keyEquivalent: "")
+        setStatusItem.target = setStatusAction as AnyObject
+        setStatusItem.representedObject = setStatusAction
+        statusBarSubmenu.addItem(setStatusItem)
+
+        let clearStatusAction = DeviceStatusBarAction(device: device, isOverride: false)
+        let clearStatusItem = NSMenuItem(title: clearStatusAction.title, action: #selector(DeviceStatusBarAction.perform), keyEquivalent: "")
+        clearStatusItem.target = clearStatusAction as AnyObject
+        clearStatusItem.representedObject = clearStatusAction
+        statusBarSubmenu.addItem(clearStatusItem)
+
+        statusBarItem.submenu = statusBarSubmenu
+        items.insert(statusBarItem, at: 3)
+    }
+
     if device.runtime.osType == .iOS {
         let pairItem = NSMenuItem.init(title: "Pair", action: nil, keyEquivalent: "")
         pairItem.indentationLevel = 1
@@ -267,3 +315,103 @@ class DeviceDeleteAction: DeviceActionable {
         }
     }
 }
+
+class DeviceAppearanceAction: DeviceActionable {
+    let device: Device
+    let appearance: Device.Appearance
+    let title: String
+    var isAvailable: Bool {
+        return device.state == .booted
+    }
+    var icon: NSImage?
+    
+    required init(_ device: Device) {
+        self.device = device
+        self.appearance = .light
+        self.title = "Light Mode"
+    }
+
+    init(device: Device, appearance: Device.Appearance) {
+        self.device = device
+        self.appearance = appearance
+        switch appearance {
+        case .light:
+            self.title = "Light Mode"
+        case .dark:
+            self.title = "Dark Mode"
+        }
+    }
+
+    @objc func perform() {
+        device.setAppearance(appearance)
+    }
+}
+
+class DeviceStatusBarAction: DeviceActionable {
+    let device: Device
+    let isOverride: Bool
+    let title: String
+    var isAvailable: Bool {
+        return device.state == .booted
+    }
+    var icon: NSImage?
+
+    required init(_ device: Device) {
+        self.device = device
+        self.isOverride = true
+        self.title = "Clean Status Bar (9:41 AM, 100% Battery)"
+    }
+
+    init(device: Device, isOverride: Bool) {
+        self.device = device
+        self.isOverride = isOverride
+        self.title = isOverride ? "Clean Status Bar (9:41 AM, 100% Battery)" : "Clear Status Bar Overrides"
+    }
+
+    @objc func perform() {
+        if isOverride {
+            device.overrideStatusBar()
+        } else {
+            device.clearStatusBar()
+        }
+    }
+}
+
+class DeviceOpenURLAction: DeviceActionable {
+    let device: Device
+    let title: String = "Open URL / Deep Link..."
+    var isAvailable: Bool = true
+    var icon: NSImage?
+
+    required init(_ device: Device) {
+        self.device = device
+    }
+
+    @objc func perform() {
+        let alert = NSAlert()
+        alert.messageText = "Open URL / Deep Link"
+        alert.informativeText = "Enter a URL scheme or web address to open on '\(device.name)':"
+        
+        let inputTextField = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+        inputTextField.placeholderString = "e.g. myapp://path or https://apple.com"
+        
+        if let lastURL = UserDefaults.standard.string(forKey: "iSimulator.lastOpenedURL") {
+            inputTextField.stringValue = lastURL
+        }
+        
+        alert.accessoryView = inputTextField
+        alert.addButton(withTitle: "Open")
+        alert.addButton(withTitle: "Cancel")
+        
+        NSApp.activate(ignoringOtherApps: true)
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            let urlString = inputTextField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !urlString.isEmpty {
+                UserDefaults.standard.set(urlString, forKey: "iSimulator.lastOpenedURL")
+                device.openURL(urlString)
+            }
+        }
+    }
+}
+

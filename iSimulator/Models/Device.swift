@@ -139,6 +139,38 @@ extension Device {
     func pair(to device: Device) {
         shell("/usr/bin/xcrun", arguments: "simctl", "pair", self.udid, device.udid)
     }
+    
+    enum Appearance: String {
+        case light
+        case dark
+    }
+
+    func setAppearance(_ appearance: Appearance) {
+        shell("/usr/bin/xcrun", arguments: "simctl", "ui", self.udid, "appearance", appearance.rawValue)
+    }
+
+    func overrideStatusBar() {
+        shell("/usr/bin/xcrun", arguments: "simctl", "status_bar", self.udid, "override",
+              "--time", "9:41",
+              "--dataNetwork", "wifi",
+              "--wifiMode", "active",
+              "--wifiBars", "3",
+              "--cellularMode", "active",
+              "--cellularBars", "4",
+              "--batteryState", "charged",
+              "--batteryLevel", "100")
+    }
+
+    func clearStatusBar() {
+        shell("/usr/bin/xcrun", arguments: "simctl", "status_bar", self.udid, "clear")
+    }
+
+    func openURL(_ urlString: String) {
+        if self.state == .shutdown {
+            try? self.boot()
+        }
+        shell("/usr/bin/xcrun", arguments: "simctl", "openurl", self.udid, urlString)
+    }
 }
 
 extension Device {
