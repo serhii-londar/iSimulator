@@ -24,13 +24,14 @@ error() { echo -e "\033[1;31m[ERROR]\033[0m $*" >&2; exit 1; }
 # Usage help
 show_help() {
     cat << EOF
-Usage: $(basename "$0") <version> [options]
+Usage: $(basename "$0") [version] [options]
 
 Builds iSimulator macOS app in Release mode, packages it into a zip file,
 creates a Git tag, and publishes a new release on GitHub.
 
 Arguments:
-  <version>             Version tag to release (e.g. 3.4.0 or v3.4.0)
+  [version]             Optional. Target release version (e.g. 4.0.0 or v4.0.0).
+                        If omitted, version is automatically read from Xcode project (MARKETING_VERSION).
 
 Options:
   --notes <text>        Release notes text
@@ -42,9 +43,9 @@ Options:
   -h, --help            Show this help message
 
 Examples:
-  ./scripts/publish_release.sh 3.4.0
-  ./scripts/publish_release.sh v3.4.0 --notes "Release v3.4.0 with bug fixes"
-  ./scripts/publish_release.sh 3.4.0 --draft
+  ./scripts/publish_release.sh                # Auto-detects version from Xcode project
+  ./scripts/publish_release.sh 4.0.0
+  ./scripts/publish_release.sh --dry-run
 EOF
     exit 0
 }
@@ -101,8 +102,17 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 if [[ -z "$VERSION" ]]; then
-    error "Version argument is required. Usage: ./scripts/publish_release.sh <version>"
+    DETECTED_VERSION=$(sed -n 's/.*MARKETING_VERSION = \(.*\);/\1/p' "$REPO_ROOT/iSimulator.xcodeproj/project.pbxproj" 2>/dev/null | head -n 1 | tr -d ' ')
+    if [[ -n "$DETECTED_VERSION" ]]; then
+        VERSION="$DETECTED_VERSION"
+        info "Auto-detected version from Xcode project: $VERSION"
+    else
+        error "Version argument omitted and could not auto-detect MARKETING_VERSION from Xcode project. Usage: ./scripts/publish_release.sh [version]"
+    fi
 fi
 
 # Ensure version format
