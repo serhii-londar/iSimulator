@@ -28,8 +28,10 @@ class PreferencesWindowController: NSWindowController {
     }
     
     func tabViewSelect(withIdentifier identifier: Any) {
-        let vc = self.contentViewController as! PreferencesViewController
-        vc.tabView.selectTabViewItem(withIdentifier: identifier)
+        if let vc = self.contentViewController as? PreferencesViewController {
+            _ = vc.view
+            vc.tabView.selectTabViewItem(withIdentifier: identifier)
+        }
     }
     
 }

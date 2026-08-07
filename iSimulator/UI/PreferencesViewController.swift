@@ -36,18 +36,6 @@ class PreferencesViewController: NSViewController {
         if let copyrightTF = aboutCopyright {
             copyrightTF.stringValue = infoDic["NSHumanReadableCopyright"] as? String ?? ""
         }
-        
-        setupSwiftUIPreferences()
-    }
-    
-    private func setupSwiftUIPreferences() {
-        if #available(macOS 10.15, *) {
-            let hostingController = NSHostingController(rootView: PreferencesSwiftUIView())
-            hostingController.view.frame = self.view.bounds
-            hostingController.view.autoresizingMask = [.width, .height]
-            self.addChild(hostingController)
-            self.view.addSubview(hostingController.view)
-        }
     }
 }
 

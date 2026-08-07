@@ -673,22 +673,16 @@
                             <allowedToolbarItems>
                                 <toolbarItem implicitItemIdentifier="NSToolbarFlexibleSpaceItem" id="r0X-PE-s76"/>
                                 <toolbarItem implicitItemIdentifier="3B82C268-CF40-48DA-B0FE-FE0135BD6AB5" explicitItemIdentifier="General" label="General" paletteLabel="General" tag="-1" image="NSPreferencesGeneral" selectable="YES" id="M2q-oD-6og">
-                                    <size key="minSize" width="22" height="22"/>
-                                    <size key="maxSize" width="22" height="22"/>
                                     <connections>
                                         <action selector="toolBarAction:" target="THI-BN-Wc3" id="zon-JY-pnN"/>
                                     </connections>
                                 </toolbarItem>
                                 <toolbarItem implicitItemIdentifier="68740C71-BBD8-459A-8826-BE9086BE0DDA" explicitItemIdentifier="About" label="About" paletteLabel="About" tag="-1" image="about" selectable="YES" id="bLD-fH-UrQ">
-                                    <size key="minSize" width="22" height="22"/>
-                                    <size key="maxSize" width="22" height="22"/>
                                     <connections>
                                         <action selector="toolBarAction:" target="THI-BN-Wc3" id="PXx-bz-VOP"/>
                                     </connections>
                                 </toolbarItem>
                                 <toolbarItem implicitItemIdentifier="467E2091-77EB-4BFF-A87F-3407CC491BC4" explicitItemIdentifier="Xcode Select" label="Xcode" paletteLabel="Xcode" tag="-1" image="Xcode" selectable="YES" id="5sF-yo-sxH">
-                                    <size key="minSize" width="22" height="22"/>
-                                    <size key="maxSize" width="22" height="22"/>
                                     <connections>
                                         <action selector="toolBarAction:" target="THI-BN-Wc3" id="FOz-SX-80N"/>
                                     </connections>
