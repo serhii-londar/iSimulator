@@ -7,6 +7,7 @@
 //
 
 import Cocoa
+import SwiftUI
 
 class PreferencesViewController: NSViewController {
 
@@ -17,18 +18,37 @@ class PreferencesViewController: NSViewController {
     @IBOutlet weak var aboutVersion: NSTextField!
     @IBOutlet weak var aboutCopyright: NSTextField!
     
-    
     override func viewDidLoad() {
         super.viewDidLoad()
-        self.pathTextField.stringValue = RootLink.url.path
-        let infoDic = Bundle.main.infoDictionary!
-        aboutName.stringValue = infoDic["CFBundleDisplayName"] as! String
-        let shortVersion = infoDic["CFBundleShortVersionString"] as! String
-        let version = infoDic["CFBundleVersion"] as! String
-        aboutVersion.stringValue = "Version \(shortVersion) (\(version))"
-        aboutCopyright.stringValue = infoDic["NSHumanReadableCopyright"] as! String
+        
+        if let pathTF = self.pathTextField {
+            pathTF.stringValue = RootLink.url.path
+        }
+        let infoDic = Bundle.main.infoDictionary ?? [:]
+        if let nameTF = aboutName {
+            nameTF.stringValue = infoDic["CFBundleDisplayName"] as? String ?? "iSimulator"
+        }
+        let shortVersion = infoDic["CFBundleShortVersionString"] as? String ?? ""
+        let version = infoDic["CFBundleVersion"] as? String ?? ""
+        if let versionTF = aboutVersion {
+            versionTF.stringValue = "Version \(shortVersion) (\(version))"
+        }
+        if let copyrightTF = aboutCopyright {
+            copyrightTF.stringValue = infoDic["NSHumanReadableCopyright"] as? String ?? ""
+        }
+        
+        setupSwiftUIPreferences()
     }
     
+    private func setupSwiftUIPreferences() {
+        if #available(macOS 10.15, *) {
+            let hostingController = NSHostingController(rootView: PreferencesSwiftUIView())
+            hostingController.view.frame = self.view.bounds
+            hostingController.view.autoresizingMask = [.width, .height]
+            self.addChild(hostingController)
+            self.view.addSubview(hostingController.view)
+        }
+    }
 }
 
 // MARK: - Change iSimulator folder
@@ -67,7 +87,7 @@ extension PreferencesViewController {
                         self.changePathErrorAlert(error: error)
                         return
                     }
-                    self.pathTextField.stringValue = RootLink.url.path
+                    self.pathTextField?.stringValue = RootLink.url.path
                 })
             }
         }
@@ -88,5 +108,91 @@ extension PreferencesViewController {
     @IBAction func checkForUpdate(_ sender: Any) {
         let url = "https://github.com/wigl/iSimulator/releases"
         NSWorkspace.shared.open(URL(string: url)!)
+    }
+}
+
+// MARK: - SwiftUI Preferences View
+@available(macOS 10.15, *)
+struct PreferencesSwiftUIView: View {
+    @State private var currentPath: String = RootLink.url.path
+    
+    var body: some View {
+        TabView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("iSimulator Data Directory")
+                    .font(.headline)
+                
+                HStack {
+                    TextField("Path", text: $currentPath)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .disabled(true)
+                    
+                    Button("Open Folder") {
+                        NSWorkspace.shared.open(RootLink.url)
+                    }
+                }
+                
+                Button("Change Location...") {
+                    selectNewPath()
+                }
+                
+                Spacer()
+            }
+            .padding()
+            .tabItem {
+                Text("General")
+            }
+            
+            VStack(spacing: 12) {
+                Text(Bundle.main.infoDictionary?["CFBundleDisplayName"] as? String ?? "iSimulator")
+                    .font(.title)
+                    .bold()
+                
+                Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "") (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""))")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                
+                Text(Bundle.main.infoDictionary?["NSHumanReadableCopyright"] as? String ?? "")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                
+                Button("Check for Updates...") {
+                    if let url = URL(string: "https://github.com/wigl/iSimulator/releases") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .padding(.top, 8)
+                
+                Spacer()
+            }
+            .padding()
+            .tabItem {
+                Text("About")
+            }
+        }
+        .frame(minWidth: 450, minHeight: 250)
+    }
+    
+    private func selectNewPath() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.begin { response in
+            if response == .OK, let url = panel.url {
+                RootLink.update(with: url.path) { errorStr in
+                    if let error = errorStr {
+                        let alert = NSAlert()
+                        alert.messageText = "Change data path failed!"
+                        alert.informativeText = error
+                        alert.alertStyle = .critical
+                        alert.runModal()
+                    } else {
+                        self.currentPath = RootLink.url.path
+                    }
+                }
+            }
+        }
     }
 }
