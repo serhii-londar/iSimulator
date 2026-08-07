@@ -82,7 +82,7 @@ class BarManager {
                     self.watch?.addPath(device.bundleURL.path)
                 }
                 let deviceItem = DeviceMenuItem(device)
-                if deviceItem.isEmptyApp {
+                if deviceItem.hasApps {
                     hasAppDeviceItems.append(deviceItem)
                 }else{
                     emptyAppDeviceItems.append(deviceItem)

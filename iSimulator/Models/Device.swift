@@ -7,10 +7,9 @@
 //
 
 import Foundation
-import ObjectMapper
 
-class Device: Mappable {
-    enum State: String {
+class Device: Decodable {
+    enum State: String, Decodable {
         case booted = "Booted"
         case shutdown = "Shutdown"
     }
@@ -43,19 +42,33 @@ class Device: Mappable {
         return Device.url.appendingPathComponent("\(self.udid)/device.plist")
     }
     
-    init() {
-        
+    enum CodingKeys: String, CodingKey {
+        case state
+        case availability
+        case isAvailable
+        case name
+        case udid
     }
     
-    required init?(map: Map) {
-        
-    }
+    init() {}
     
-    func mapping(map: Map) {
-        state <- (map["state"], EnumTransform())
-        availability <- (map["availability"], EnumTransform())
-        name <- map["name"]
-        udid <- map["udid"]
+    required init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let stateStr = try container.decodeIfPresent(String.self, forKey: .state),
+           let parsedState = State(rawValue: stateStr) {
+            state = parsedState
+        } else {
+            state = .shutdown
+        }
+        if let avail = try container.decodeIfPresent(Availability.self, forKey: .availability) {
+            availability = avail
+        } else if let isAvail = try container.decodeIfPresent(Bool.self, forKey: .isAvailable) {
+            availability = isAvail ? .available : .unavailable
+        } else {
+            availability = .unavailable
+        }
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
+        udid = try container.decodeIfPresent(String.self, forKey: .udid) ?? ""
     }
     
     var dataReportDic: [String: String] {

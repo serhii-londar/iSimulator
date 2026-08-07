@@ -85,7 +85,7 @@ class AppMenu: NSMenu {
     }
     
     func createRealmAppItem() -> NSMenuItem? {
-        let all = FileManager.default.enumerator(at: app.sandboxDirUrl, includingPropertiesForKeys: nil)
+        let all = FileManager.default.enumerator(at: app.sandboxDirUrl, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles, .skipsPackageDescendants])
         var realmFilePaths: [String] = []
         while let fileUrl = all?.nextObject() as? URL {
             if fileUrl.pathExtension.lowercased() == "realm" {

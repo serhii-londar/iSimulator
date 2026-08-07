@@ -7,9 +7,30 @@
 //
 
 import AppKit
-import ObjectMapper
 
-class TotalModel: Mappable {
+struct TotalModelDump: Decodable {
+    var runtimes: [Runtime] = []
+    var devicetypes: [DeviceType] = []
+    var devices: [String: [Device]] = [:]
+    var pairs: [String: Pair] = [:]
+    
+    enum CodingKeys: String, CodingKey {
+        case runtimes
+        case devicetypes
+        case devices
+        case pairs
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        runtimes = try container.decodeIfPresent([Runtime].self, forKey: .runtimes) ?? []
+        devicetypes = try container.decodeIfPresent([DeviceType].self, forKey: .devicetypes) ?? []
+        devices = try container.decodeIfPresent([String: [Device]].self, forKey: .devices) ?? [:]
+        pairs = try container.decodeIfPresent([String: Pair].self, forKey: .pairs) ?? [:]
+    }
+}
+
+class TotalModel {
     
     static let `default` = TotalModel()
     var isForceUpdate = true
@@ -41,7 +62,7 @@ class TotalModel: Mappable {
     ///该方法： 耗时 && 阻塞
     func update() {
         let xcodePath = self.xcodePath()
-        if lastXcodePath != xcodePath{
+        if lastXcodePath != xcodePath {
             isForceUpdate = true
             lastXcodePath = xcodePath
             //updateXcodeVersion()
@@ -55,7 +76,10 @@ class TotalModel: Mappable {
             }
         }
         let jsonStr = shell("/usr/bin/xcrun", arguments: "simctl", "list", "-j").outStr
-        _ = Mapper().map(JSONString: jsonStr, toObject: TotalModel.default)
+        if let data = jsonStr.data(using: .utf8),
+           let dump = try? JSONDecoder().decode(TotalModelDump.self, from: data) {
+            apply(dump: dump)
+        }
     }
     
     var runtimes: [Runtime] = []
@@ -76,28 +100,20 @@ class TotalModel: Mappable {
     }
     
     private var devices: [String: [Device]] = [:]
-    
     private var pairs: [String: Pair] = [:]
     
     private init() {
         
     }
     
-    required init?(map: Map) {
+    private func apply(dump: TotalModelDump) {
+        runtimes = dump.runtimes
+        devicetypes = dump.devicetypes
+        devices = dump.devices
+        pairs = dump.pairs
         
-    }
-    
-    func mapping(map: Map) {
-        runtimes.removeAll()
-        devicetypes.removeAll()
-        devices.removeAll()
-        pairs.removeAll()
-        runtimes <- map["runtimes"]
-        devicetypes <- map["devicetypes"]
-        devices <- map["devices"]
-        pairs <- map["pairs"]
         // 关联 runtime 和 device/devicetype
-        runtimes.forEach{ r in
+        runtimes.forEach { r in
             r.devices = self.devices[r.name] ?? (self.devices[r.identifier] ?? [])
             switch r.osType {
             case .iOS:
@@ -109,7 +125,7 @@ class TotalModel: Mappable {
             case .None:
                 break
             }
-            r.devices.forEach{
+            r.devices.forEach {
                 $0.runtime = r
                 //⚠️⚠️关联之后，再更新device的APP，否则取不到device的runtime⚠️⚠️
                 $0.updateApps(with: appCache)
@@ -120,14 +136,14 @@ class TotalModel: Mappable {
         let tempAllDevice: [Device] = runtimes.flatMap { $0.devices }
         pairs.forEach { (key, pair) in
             let watch = tempAllDevice.first(where: { (device) -> Bool in
-                if let watch = pair.watch{
+                if let watch = pair.watch {
                     return device.udid == watch.udid
                 } else {
                     return false
                 }
             })
             let phone = tempAllDevice.first(where: { (device) -> Bool in
-                if let phone = pair.phone{
+                if let phone = pair.phone {
                     return device.udid == phone.udid
                 } else {
                     return false
@@ -183,3 +199,4 @@ class TotalModel: Mappable {
         return ["r": r, "dt": dt, "d": d, "p": p]
     }
 }
+

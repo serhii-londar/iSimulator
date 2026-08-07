@@ -10,10 +10,10 @@ import Cocoa
 
 class DeviceMenuItem: NSMenuItem {
     let device: Device
-    let isEmptyApp: Bool
+    let hasApps: Bool
     init(_ device: Device) {
         self.device = device
-        isEmptyApp = !device.applications.isEmpty
+        hasApps = !device.applications.isEmpty
         super.init(title: device.name, action: nil, keyEquivalent: "")
         self.onStateImage = NSImage.init(named: NSImage.statusAvailableName)
         self.offStateImage = nil
