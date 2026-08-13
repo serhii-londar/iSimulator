@@ -147,15 +147,6 @@ if [[ "$DRY_RUN" == false ]]; then
     fi
 fi
 
-# Cleanup build directory on exit
-cleanup() {
-    if [[ -d "$BUILD_DIR" ]]; then
-        info "Cleaning up build directory..."
-        rm -rf "$BUILD_DIR"
-    fi
-}
-trap cleanup EXIT
-
 # Step 1: Clean & Build Release App
 info "Building iSimulator in Release configuration..."
 rm -rf "$BUILD_DIR"
@@ -185,7 +176,7 @@ success "Successfully built iSimulator.app"
 # Step 2: Archive / Package
 info "Creating zip archives..."
 cd "$BUILD_DIR/DerivedData/Build/Products/Release"
-ditto -c -k --sequesterRsrc "iSimulator.app" "$BUILD_DIR/$ZIP_NAME"
+ditto -c -k --sequesterRsrc --keepParent "iSimulator.app" "$BUILD_DIR/$ZIP_NAME"
 cp "$BUILD_DIR/$ZIP_NAME" "$BUILD_DIR/$VERSIONED_ZIP_NAME"
 cd "$REPO_ROOT"
 
