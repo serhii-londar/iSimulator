@@ -63,7 +63,12 @@
 ## Installation
 
 ### Option 1: Download Pre-built App
-Download the latest pre-compiled binary from [GitHub Releases](https://github.com/serhii-londar/iSimulator/releases).
+1. Download the latest pre-compiled binary from [GitHub Releases](https://github.com/serhii-londar/iSimulator/releases).
+2. Unzip and move `iSimulator.app` to your `/Applications` or desired folder.
+3. *If macOS shows '"iSimulator" is damaged and can't be opened' (due to Gatekeeper quarantine on downloaded unsigned archives)*, run:
+   ```bash
+   xattr -cr /Applications/iSimulator.app
+   ```
 
 ### Option 2: Build from Source
 Clone the repository and build using Xcode:

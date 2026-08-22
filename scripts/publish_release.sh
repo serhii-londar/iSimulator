@@ -173,7 +173,10 @@ fi
 
 success "Successfully built iSimulator.app"
 
-# Step 2: Archive / Package
+# Step 2: Code Sign & Package
+info "Signing application (ad-hoc)..."
+codesign --force --deep --sign - "$APP_PATH" || warn "Ad-hoc code signing failed, proceeding anyway."
+
 info "Creating zip archives..."
 cd "$BUILD_DIR/DerivedData/Build/Products/Release"
 ditto -c -k --sequesterRsrc --keepParent "iSimulator.app" "$BUILD_DIR/$ZIP_NAME"
