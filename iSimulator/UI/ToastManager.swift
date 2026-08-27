@@ -50,7 +50,7 @@ class ToastManager {
             container.frame = NSRect(x: 0, y: 0, width: totalWidth, height: totalHeight)
             container.addSubview(label)
             
-            guard let mainScreen = NSScreen.main else { return }
+            guard let mainScreen = NSScreen.main ?? NSScreen.screens.first else { return }
             let screenFrame = mainScreen.visibleFrame
             let windowRect = NSRect(
                 x: screenFrame.midX - (totalWidth / 2),
@@ -65,6 +65,7 @@ class ToastManager {
                 backing: .buffered,
                 defer: false
             )
+            window.isReleasedWhenClosed = false
             window.isOpaque = false
             window.backgroundColor = .clear
             window.level = .floating
