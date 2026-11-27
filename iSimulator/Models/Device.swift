@@ -23,10 +23,23 @@ class Device: Decodable {
     var pairs: [Device] = []
     // 当设备为watch的时候，配对UDID
     var pairUDID: String?
+    var dataPathSize: UInt64 = 0
+    var logPath: String?
+    private var cachedTotalSize: UInt64?
     weak var runtime: Runtime!
     /// 用于监控Device被抹掉的改变
+    var deviceURL: URL {
+        return Device.url.appendingPathComponent(self.udid)
+    }
     var dataURL: URL {
         return Device.url.appendingPathComponent("\(self.udid)/data")
+    }
+    var logURL: URL? {
+        if let logPath = logPath, !logPath.isEmpty {
+            return URL(fileURLWithPath: logPath)
+        }
+        return FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("Logs/CoreSimulator/\(self.udid)")
     }
     var sandboxURL: URL {
         return Device.url.appendingPathComponent("\(self.udid)/data/Containers/Data/Application")
@@ -48,6 +61,8 @@ class Device: Decodable {
         case isAvailable
         case name
         case udid
+        case dataPathSize
+        case logPath
     }
     
     init() {}
@@ -69,6 +84,8 @@ class Device: Decodable {
         }
         name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
         udid = try container.decodeIfPresent(String.self, forKey: .udid) ?? ""
+        dataPathSize = try container.decodeIfPresent(UInt64.self, forKey: .dataPathSize) ?? 0
+        logPath = try container.decodeIfPresent(String.self, forKey: .logPath)
     }
     
     var dataReportDic: [String: String] {
@@ -86,6 +103,70 @@ extension Device {
     static let setURL: URL = {
         return url.appendingPathComponent("device_set.plist")
     }()
+}
+
+// MARK: - Disk Size
+extension Device {
+    /// Size of the simulator's data directory (`dataPath`) in bytes.
+    var dataSize: UInt64 {
+        if dataPathSize > 0 {
+            return dataPathSize
+        }
+        return directorySize(at: dataURL)
+    }
+
+    /// Total size of the simulator on Mac (device directory + logs) in bytes.
+    var totalSize: UInt64 {
+        if let cached = cachedTotalSize {
+            return cached
+        }
+        let nonDataSize = directorySize(at: deviceURL, excluding: "data")
+        let logsSize = logURL.map { directorySize(at: $0) } ?? 0
+        let total = dataSize + nonDataSize + logsSize
+        cachedTotalSize = total
+        return total
+    }
+
+    var formattedDataSize: String {
+        return ByteCountFormatter.string(fromByteCount: Int64(dataSize), countStyle: .file)
+    }
+
+    var formattedTotalSize: String {
+        return ByteCountFormatter.string(fromByteCount: Int64(totalSize), countStyle: .file)
+    }
+
+    private func directorySize(at url: URL, excluding excludedSubdir: String? = nil) -> UInt64 {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: url.path) else { return 0 }
+        let resourceKeys: Set<URLResourceKey> = [.isRegularFileKey, .totalFileAllocatedSizeKey, .fileSizeKey]
+        guard let enumerator = fm.enumerator(
+            at: url,
+            includingPropertiesForKeys: Array(resourceKeys),
+            options: [],
+            errorHandler: { _, _ in true }
+        ) else {
+            return 0
+        }
+        var total: UInt64 = 0
+        for case let fileURL as URL in enumerator {
+            if let excludedSubdir = excludedSubdir,
+               fileURL.lastPathComponent == excludedSubdir,
+               fileURL.deletingLastPathComponent().standardizedFileURL == url.standardizedFileURL {
+                enumerator.skipDescendants()
+                continue
+            }
+            guard let values = try? fileURL.resourceValues(forKeys: resourceKeys),
+                  values.isRegularFile == true else {
+                continue
+            }
+            if let allocated = values.totalFileAllocatedSize {
+                total += UInt64(allocated)
+            } else if let fileSize = values.fileSize {
+                total += UInt64(fileSize)
+            }
+        }
+        return total
+    }
 }
 
 // MARK: - device Action
