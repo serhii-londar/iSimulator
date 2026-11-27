@@ -504,27 +504,37 @@ class AppUninstallAction: AppActionable {
   required init(_ app: Application) {
     self.app = app
   }
-  var title: String = "Uninstall..."
+  var title: String = "Delete App..."
   @objc func perform() {
     let alert: NSAlert = NSAlert()
     alert.messageText = String(
-      format: "Are you sure you want to uninstall %@ from %@?", app.bundleDisplayName,
+      format: "Are you sure you want to delete %@ from %@?", app.bundleDisplayName,
       app.device.name)
-    alert.informativeText = "All of data(sandbox/bundle) in this application will be deleted."
+    alert.informativeText = "All of data (sandbox/bundle) in this application will be deleted."
     alert.alertStyle = .critical
-    alert.addButton(withTitle: "Uninstall")
+    alert.addButton(withTitle: "Delete")
     alert.addButton(withTitle: "Cancel")
     NSApp.activate(ignoringOtherApps: true)
     let response = alert.runModal()
     if response == NSApplication.ModalResponse.alertFirstButtonReturn {
-      app.uninstall()
+      let targetApp = app
+      DispatchQueue.global(qos: .userInitiated).async {
+        targetApp.uninstall()
+        TotalModel.default.isForceUpdate = true
+        BarManager.default.refresh(immediate: true)
+        ToastManager.shared.showToast(
+          message: "Deleted \(targetApp.bundleDisplayName)", iconName: "trash.fill")
+      }
     }
 
   }
-  var isAvailable: Bool {
-    return app.device.state == .booted
+  var isAvailable: Bool = true
+  var icon: NSImage? {
+    if #available(macOS 11.0, *) {
+      return NSImage(systemSymbolName: "trash", accessibilityDescription: nil)
+    }
+    return nil
   }
-  var icon: NSImage?
 }
 
 protocol AppActionableExt: AppActionable {

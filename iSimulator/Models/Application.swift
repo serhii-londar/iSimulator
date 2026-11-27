@@ -173,8 +173,20 @@ extension Application {
   }
 
   func uninstall() {
-    self.terminate()
-    shell("/usr/bin/xcrun", arguments: "simctl", "uninstall", device.udid, bundleID)
+    if device.state == .booted {
+      self.terminate()
+    }
+    _ = shell("/usr/bin/xcrun", arguments: "simctl", "uninstall", device.udid, bundleID)
+    let fm = FileManager.default
+    if fm.fileExists(atPath: bundleDirUrl.path) {
+      try? fm.removeItem(at: bundleDirUrl)
+    }
+    if fm.fileExists(atPath: sandboxDirUrl.path) {
+      try? fm.removeItem(at: sandboxDirUrl)
+    }
+    if let linkURL = linkURL, fm.fileExists(atPath: linkURL.path) {
+      try? fm.removeItem(at: linkURL)
+    }
   }
 
   func resetContent() {
