@@ -16,13 +16,38 @@ extension NSImage {
     guard self.isValid, !self.representations.isEmpty else {
       return self
     }
-    return NSImage(size: size, flipped: false) { rect in
-      NSGraphicsContext.current?.imageInterpolation = .high
+    let scale = 2
+    let pixelSize = Int(h) * scale
+    guard
+      let rep = NSBitmapImageRep(
+        bitmapDataPlanes: nil,
+        pixelsWide: pixelSize,
+        pixelsHigh: pixelSize,
+        bitsPerSample: 8,
+        samplesPerPixel: 4,
+        hasAlpha: true,
+        isPlanar: false,
+        colorSpaceName: .deviceRGB,
+        bytesPerRow: 0,
+        bitsPerPixel: 0
+      )
+    else {
+      return self
+    }
+    rep.size = size
+    NSGraphicsContext.saveGraphicsState()
+    if let ctx = NSGraphicsContext(bitmapImageRep: rep) {
+      NSGraphicsContext.current = ctx
+      ctx.imageInterpolation = .high
+      let rect = NSRect(origin: .zero, size: size)
       let path = NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius)
       path.addClip()
       self.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1.0)
-      return true
     }
+    NSGraphicsContext.restoreGraphicsState()
+    let result = NSImage(size: size)
+    result.addRepresentation(rep)
+    return result
   }
 }
 

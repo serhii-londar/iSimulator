@@ -115,8 +115,7 @@ class Application {
       iconFiles = ["Icon.png"]
     }
     if let imageStr = iconFiles?.last,
-      let bundle = Bundle(url: appUrl),
-      let im = bundle.image(forResource: imageStr)
+      let im = Application.loadIconImage(named: imageStr, in: appURL)
     {
       originImage = im
       image = im.appIcon()
@@ -124,6 +123,38 @@ class Application {
       originImage = appOriginImage
       image = appImage
     }
+  }
+
+  private static func loadIconImage(named iconName: String, in appURL: URL) -> NSImage? {
+    let baseName = (iconName as NSString).deletingPathExtension
+    let fm = FileManager.default
+    let candidates = [
+      "\(baseName)@2x.png",
+      "\(baseName)@3x.png",
+      "\(baseName).png",
+      iconName,
+    ]
+    for candidate in candidates {
+      let url = appURL.appendingPathComponent(candidate)
+      if fm.fileExists(atPath: url.path), let img = NSImage(contentsOf: url), img.isValid {
+        return img
+      }
+    }
+    if let contents = try? fm.contentsOfDirectory(
+      at: appURL, includingPropertiesForKeys: nil,
+      options: [.skipsSubdirectoryDescendants, .skipsHiddenFiles])
+    {
+      let matching = contents.filter {
+        $0.pathExtension.lowercased() == "png" && $0.lastPathComponent.hasPrefix(baseName)
+      }
+      if let match = matching.first(where: { $0.lastPathComponent.contains("@2x") })
+        ?? matching.first,
+        let img = NSImage(contentsOf: match), img.isValid
+      {
+        return img
+      }
+    }
+    return nil
   }
 }
 
