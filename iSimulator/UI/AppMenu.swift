@@ -59,8 +59,11 @@ class AppMenu: NSMenu {
     }
     self.addItem(NSMenuItem.separator())
     let infoItem = NSMenuItem()
-    infoItem.view = AppInfoView(application: app)
     self.addItem(infoItem)
+    let targetApp = app
+    DispatchQueue.main.async {
+      infoItem.view = AppInfoView(application: targetApp)
+    }
   }
 
   func createOtherSimLunchAppItem() -> NSMenuItem {
