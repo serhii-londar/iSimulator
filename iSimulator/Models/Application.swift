@@ -38,24 +38,36 @@ class Application {
     return ByteCountFormatter.string(fromByteCount: Int64(totalSize), countStyle: .file)
   }
 
-  lazy private(set) var attributeStr: NSMutableAttributedString = {
+  var attributeStr: NSMutableAttributedString {
+    return attributedTitle(totalSize: cachedTotalSize)
+  }
+
+  func attributedTitle(totalSize: UInt64?) -> NSMutableAttributedString {
     let name = "\(self.bundleDisplayName) - \(self.bundleShortVersion)(\(self.bundleVersion))"
-    let sizeSuffix = "  (\(self.formattedTotalSize))"
+    let sizeSuffix: String
+    if let totalSize = totalSize {
+      let formatted = ByteCountFormatter.string(fromByteCount: Int64(totalSize), countStyle: .file)
+      sizeSuffix = "  (\(formatted))"
+    } else {
+      sizeSuffix = ""
+    }
     let other = "\n\(self.bundleID)"
     let att = NSMutableAttributedString(string: name + sizeSuffix + other)
     att.addAttributes(
       [NSAttributedString.Key.font: NSFont.systemFont(ofSize: 13)],
       range: NSRange(location: 0, length: name.count))
-    att.addAttributes(
-      [
-        NSAttributedString.Key.font: NSFont.menuFont(ofSize: 11),
-        NSAttributedString.Key.foregroundColor: NSColor.secondaryLabelColor,
-      ], range: NSRange(location: name.count, length: sizeSuffix.count))
+    if !sizeSuffix.isEmpty {
+      att.addAttributes(
+        [
+          NSAttributedString.Key.font: NSFont.menuFont(ofSize: 11),
+          NSAttributedString.Key.foregroundColor: NSColor.secondaryLabelColor,
+        ], range: NSRange(location: name.count, length: sizeSuffix.count))
+    }
     att.addAttributes(
       [NSAttributedString.Key.font: NSFont.systemFont(ofSize: 11)],
       range: NSRange(location: name.count + sizeSuffix.count, length: other.count))
     return att
-  }()
+  }
 
   init?(bundleID: String, bundleDirUrl: URL, sandboxDirUrl: URL) {
     self.bundleID = bundleID
@@ -248,6 +260,7 @@ extension Application {
     DispatchQueue.global(qos: .utility).async {
       let sandboxSize = self.sizeOfDirectory(self.sandboxDirUrl)
       let bundleSize = self.sizeOfDirectory(self.bundleDirUrl)
+      self.cachedTotalSize = sandboxSize + bundleSize
       DispatchQueue.main.async {
         closure(sandboxSize, bundleSize)
       }

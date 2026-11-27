@@ -9,40 +9,35 @@
 import Cocoa
 
 extension NSImage {
-    
-    func appIcon(h:CGFloat = 35) -> NSImage {
-        let size = NSSize(width: h, height: h)
-        let cornerRadius: CGFloat = h/5
-        guard self.isValid else {
-            return self
-        }
-        let newImage = NSImage(size: size)
 
-        self.size = size
-        newImage.lockFocus()
-        NSGraphicsContext.current?.imageInterpolation = .high
-        NSGraphicsContext.saveGraphicsState()
-        let path = NSBezierPath(roundedRect: NSRect(origin: NSPoint.zero, size: size), xRadius: cornerRadius, yRadius: cornerRadius)
-        path.addClip()
-        self.draw(at: NSPoint.zero, from: NSRect(origin: NSPoint.zero, size: size), operation: .copy, fraction: 1.0)
-        NSGraphicsContext.restoreGraphicsState()
-        newImage.unlockFocus()
-        return newImage
+  func appIcon(h: CGFloat = 35) -> NSImage {
+    let size = NSSize(width: h, height: h)
+    let cornerRadius: CGFloat = h / 5
+    guard self.isValid, !self.representations.isEmpty else {
+      return self
     }
+    return NSImage(size: size, flipped: false) { rect in
+      NSGraphicsContext.current?.imageInterpolation = .high
+      let path = NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius)
+      path.addClip()
+      self.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1.0)
+      return true
+    }
+  }
 }
 
-extension Array where Element:Equatable {
-    func divideDuplicates() -> (result: [Element], duplicates: [Element]) {
-        var result = [Element]()
-        var duplicates = [Element]()
-        for value in self {
-            if result.contains(value) == false {
-                result.append(value)
-            }else{
-                duplicates.append(value)
-            }
-        }
-        
-        return (result, duplicates)
+extension Array where Element: Equatable {
+  func divideDuplicates() -> (result: [Element], duplicates: [Element]) {
+    var result = [Element]()
+    var duplicates = [Element]()
+    for value in self {
+      if result.contains(value) == false {
+        result.append(value)
+      } else {
+        duplicates.append(value)
+      }
     }
+
+    return (result, duplicates)
+  }
 }

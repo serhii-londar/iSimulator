@@ -135,6 +135,16 @@ extension Device {
         return ByteCountFormatter.string(fromByteCount: Int64(totalSize), countStyle: .file)
     }
 
+    var fastFormattedSize: String {
+        if let cached = cachedTotalSize {
+            return ByteCountFormatter.string(fromByteCount: Int64(cached), countStyle: .file)
+        }
+        if dataPathSize > 0 {
+            return ByteCountFormatter.string(fromByteCount: Int64(dataPathSize), countStyle: .file)
+        }
+        return "---"
+    }
+
     private func directorySize(at url: URL, excluding excludedSubdir: String? = nil) -> UInt64 {
         let fm = FileManager.default
         guard fm.fileExists(atPath: url.path) else { return 0 }

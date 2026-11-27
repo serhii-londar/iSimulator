@@ -8,14 +8,26 @@
 
 import Cocoa
 
-class DeviceMenuItem: NSMenuItem {
+class DeviceMenuItem: NSMenuItem, NSMenuDelegate {
   let device: Device
   let hasApps: Bool
+  private var isSubmenuPopulated = false
+
   init(_ device: Device) {
     self.device = device
     hasApps = !device.applications.isEmpty
     super.init(title: device.name, action: nil, keyEquivalent: "")
-    let sizeSuffix = "  (\(device.formattedTotalSize))"
+    updateTitle(sizeText: device.fastFormattedSize)
+    self.onStateImage = NSImage.init(named: NSImage.statusAvailableName)
+    self.offStateImage = nil
+    self.state = device.state == .shutdown ? .off : .on
+    let sub = NSMenu()
+    sub.delegate = self
+    self.submenu = sub
+  }
+
+  private func updateTitle(sizeText: String) {
+    let sizeSuffix = "  (\(sizeText))"
     let attributedTitle = NSMutableAttributedString(string: device.name + sizeSuffix)
     attributedTitle.addAttributes(
       [
@@ -27,40 +39,53 @@ class DeviceMenuItem: NSMenuItem {
         .foregroundColor: NSColor.secondaryLabelColor,
       ], range: NSRange(location: device.name.count, length: sizeSuffix.count))
     self.attributedTitle = attributedTitle
-    self.onStateImage = NSImage.init(named: NSImage.statusAvailableName)
-    self.offStateImage = nil
-    self.state = device.state == .shutdown ? .off : .on
-    self.submenu = NSMenu()
+  }
+
+  func menuNeedsUpdate(_ menu: NSMenu) {
+    guard !isSubmenuPopulated else { return }
+    isSubmenuPopulated = true
+
     let storageHeader = NSMenuItem(title: "Storage", action: nil, keyEquivalent: "")
     storageHeader.isEnabled = false
-    self.submenu?.addItem(storageHeader)
+    menu.addItem(storageHeader)
     let totalSizeItem = NSMenuItem(
-      title: "Simulator Size: \(device.formattedTotalSize)", action: nil, keyEquivalent: "")
+      title: "Simulator Size: \(device.fastFormattedSize)", action: nil, keyEquivalent: "")
     totalSizeItem.indentationLevel = 1
-    self.submenu?.addItem(totalSizeItem)
+    menu.addItem(totalSizeItem)
     let dataSizeItem = NSMenuItem(
       title: "Data Size: \(device.formattedDataSize)", action: nil, keyEquivalent: "")
     dataSizeItem.indentationLevel = 1
-    self.submenu?.addItem(dataSizeItem)
-    self.submenu?.addItem(NSMenuItem.separator())
+    menu.addItem(dataSizeItem)
+    menu.addItem(NSMenuItem.separator())
     if !device.applications.isEmpty {
       let appHeader = NSMenuItem.init(title: "Application", action: nil, keyEquivalent: "")
       appHeader.isEnabled = false
-      self.submenu?.addItem(appHeader)
+      menu.addItem(appHeader)
       device.applications.forEach({ (app) in
-        self.submenu?.addItem(AppMenuItem(app))
+        let appItem = AppMenuItem(app)
+        menu.addItem(appItem)
+        appItem.refreshSizeAsync()
       })
-      self.submenu?.addItem(NSMenuItem.separator())
+      menu.addItem(NSMenuItem.separator())
     }
     let deviceActionItems = createDeviceActionItems(device)
     deviceActionItems.forEach({ (item) in
-      self.submenu?.addItem(item)
+      menu.addItem(item)
     })
     if !device.pairs.isEmpty {
-      self.submenu?.addItem(NSMenuItem.separator())
+      menu.addItem(NSMenuItem.separator())
       pairActionItems(device).forEach({ (item) in
-        self.submenu?.addItem(item)
+        menu.addItem(item)
       })
+    }
+
+    DispatchQueue.global(qos: .utility).async { [weak self] in
+      guard let self = self else { return }
+      let formatted = self.device.formattedTotalSize
+      DispatchQueue.main.async {
+        totalSizeItem.title = "Simulator Size: \(formatted)"
+        self.updateTitle(sizeText: formatted)
+      }
     }
   }
 

@@ -20,6 +20,13 @@ class AppMenuItem: NSMenuItem {
         self.indentationLevel = 1
         self.submenu = AppMenu(app)
     }
+
+    func refreshSizeAsync() {
+        app.size { [weak self] sandboxSize, bundleSize in
+            guard let self = self else { return }
+            self.attributedTitle = self.app.attributedTitle(totalSize: sandboxSize + bundleSize)
+        }
+    }
     
     required init(coder decoder: NSCoder) {
         fatalError("init(cowder:) has not been implemented")

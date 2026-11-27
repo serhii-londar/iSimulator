@@ -10,18 +10,25 @@
 
 import Cocoa
 
-class AppMenu: NSMenu {
+class AppMenu: NSMenu, NSMenuDelegate {
 
   let app: Application
+  private var isPopulated = false
 
   init(_ app: Application) {
     self.app = app
     super.init(title: "")
-    addCustomItem()
+    self.delegate = self
   }
 
   required init(coder decoder: NSCoder) {
     fatalError("init(coder:) has not been implemented")
+  }
+
+  func menuNeedsUpdate(_ menu: NSMenu) {
+    guard !isPopulated else { return }
+    isPopulated = true
+    addCustomItem()
   }
 
   private func addCustomItem() {
@@ -59,11 +66,8 @@ class AppMenu: NSMenu {
     }
     self.addItem(NSMenuItem.separator())
     let infoItem = NSMenuItem()
+    infoItem.view = AppInfoView(application: app)
     self.addItem(infoItem)
-    let targetApp = app
-    DispatchQueue.main.async {
-      infoItem.view = AppInfoView(application: targetApp)
-    }
   }
 
   func createOtherSimLunchAppItem() -> NSMenuItem {

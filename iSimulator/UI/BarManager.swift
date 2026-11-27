@@ -24,7 +24,7 @@ class BarManager {
     statusItem.image?.isTemplate = true
     statusItem.menu = menu
     addWatch()
-    refresh()
+    refresh(immediate: true)
     self.commonItems.forEach({ (item) in
       self.menu.addItem(item)
     })
@@ -38,7 +38,7 @@ class BarManager {
     })
   }
 
-  func refresh() {
+  func refresh(immediate: Bool = false) {
     refreshTask?.cancel()
     let task = DispatchWorkItem { [weak self] in
       guard let `self` = self else { return }
@@ -61,7 +61,11 @@ class BarManager {
       }
     }
     self.refreshTask = task
-    self.queue.asyncAfter(deadline: .now() + 0.75, execute: task)
+    if immediate {
+      self.queue.async(execute: task)
+    } else {
+      self.queue.asyncAfter(deadline: .now() + 0.75, execute: task)
+    }
   }
 
   private func deviceItems() -> [NSMenuItem] {
@@ -127,6 +131,7 @@ class BarManager {
           if FavoritesManager.shared.isPinned(app: app) {
             let appItem = AppMenuItem(app)
             appItem.indentationLevel = 0
+            appItem.refreshSizeAsync()
             pinnedAppItems.append(appItem)
           }
         }
