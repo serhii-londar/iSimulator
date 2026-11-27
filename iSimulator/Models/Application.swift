@@ -8,7 +8,8 @@
 
 import Cocoa
 
-private let appOriginImage = #imageLiteral(resourceName: "default_ios_app_icon").appIcon(h: 512)
+private let appOriginImage = #imageLiteral(resourceName: "default_ios_app_icon").appIcon(
+  h: 512, scale: 1)
 private let appImage = #imageLiteral(resourceName: "default_ios_app_icon").appIcon()
 
 class Application {
@@ -117,7 +118,7 @@ class Application {
     if let imageStr = iconFiles?.last,
       let im = Application.loadIconImage(named: imageStr, in: appURL)
     {
-      originImage = im
+      originImage = im.appIcon(h: 512, scale: 1)
       image = im.appIcon()
     } else {
       originImage = appOriginImage

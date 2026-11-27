@@ -10,13 +10,12 @@ import Cocoa
 
 extension NSImage {
 
-  func appIcon(h: CGFloat = 35) -> NSImage {
+  func appIcon(h: CGFloat = 35, scale: Int = 2) -> NSImage {
     let size = NSSize(width: h, height: h)
     let cornerRadius: CGFloat = h / 5
     guard self.isValid, !self.representations.isEmpty else {
       return self
     }
-    let scale = 2
     let pixelSize = Int(h) * scale
     guard
       let rep = NSBitmapImageRep(
