@@ -15,6 +15,10 @@
 
 set -eo pipefail
 
+if [ -z "${BASH_VERSION:-}" ]; then
+    exec /usr/bin/env bash "$0" "$@"
+fi
+
 # Print styled messages
 info() { echo -e "\033[1;34m[INFO]\033[0m $*"; }
 success() { echo -e "\033[1;32m[SUCCESS]\033[0m $*"; }
@@ -199,12 +203,31 @@ fi
 success "Successfully built iSimulator.app"
 
 # Step 2: Code Sign, Notarize & Package
+NOTARY_KEYCHAIN_PROFILE="${NOTARY_KEYCHAIN_PROFILE:-${NOTARYTOOL_PROFILE:-${KEYCHAIN_PROFILE:-}}}"
+
 has_notary_credentials() {
     [[ -n "${NOTARY_KEYCHAIN_PROFILE:-}" ]] && return 0
     [[ -n "${NOTARY_KEY_ID:-}" && -n "${NOTARY_ISSUER_ID:-}" && ( -n "${NOTARY_KEY_PATH:-}" || -n "${NOTARY_KEY_BASE64:-}" ) ]] && return 0
     [[ -n "${APPLE_ID:-}" && -n "${APPLE_TEAM_ID:-}" && -n "${APPLE_APP_PASSWORD:-}" ]] && return 0
     return 1
 }
+
+if [[ -z "$SIGN_IDENTITY" ]]; then
+    SIGN_IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -n 1 || true)
+    if [[ -n "$SIGN_IDENTITY" ]]; then
+        info "Auto-detected Developer ID identity: $SIGN_IDENTITY"
+    fi
+fi
+
+if [[ -n "$SIGN_IDENTITY" ]] && ! has_notary_credentials; then
+    for candidate in iSimulatorNotary ScreenMirror notarytool AC_PASSWORD; do
+        if xcrun notarytool history --keychain-profile "${candidate}" >/dev/null 2>&1; then
+            NOTARY_KEYCHAIN_PROFILE="${candidate}"
+            info "Using notarytool keychain profile '${candidate}'."
+            break
+        fi
+    done
+fi
 
 if [[ "$NOTARIZE" == false && -n "$SIGN_IDENTITY" ]] && has_notary_credentials; then
     NOTARIZE=true
@@ -215,6 +238,9 @@ if [[ -n "$SIGN_IDENTITY" && "$SIGN_IDENTITY" != "-" ]]; then
     codesign --force --deep --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP_PATH"
     codesign --verify --deep --strict --verbose=2 "$APP_PATH"
     success "Successfully signed iSimulator.app"
+    if [[ "$NOTARIZE" == false ]]; then
+        warn "Developer ID signed, but notarization credentials were not provided. Set NOTARY_KEYCHAIN_PROFILE (or NOTARY_KEY_ID / APPLE_ID) to notarize."
+    fi
 else
     if [[ "$NOTARIZE" == true ]]; then
         error "Notarization requires a Developer ID Application signing identity (--sign-identity or DEVELOPER_ID_APPLICATION)."
