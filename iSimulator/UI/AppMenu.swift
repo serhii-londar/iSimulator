@@ -57,6 +57,10 @@ class AppMenu: NSMenu {
     if let item = createPreferencesInspectorItem() {
       self.addItem(item)
     }
+    self.addItem(NSMenuItem.separator())
+    let infoItem = NSMenuItem()
+    infoItem.view = AppInfoView(application: app)
+    self.addItem(infoItem)
   }
 
   func createOtherSimLunchAppItem() -> NSMenuItem {

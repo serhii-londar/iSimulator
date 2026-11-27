@@ -12,284 +12,358 @@ private let appOriginImage = #imageLiteral(resourceName: "default_ios_app_icon")
 private let appImage = #imageLiteral(resourceName: "default_ios_app_icon").appIcon()
 
 class Application {
-    let bundleID: String
-    let bundleDirUrl: URL //.app文件所在目录URL
-    let sandboxDirUrl: URL //沙盒文件目录URL
-    let appUrl: URL //.app 的url
-    let bundleDisplayName: String
-    let bundleShortVersion: String
-    let bundleVersion: String
-    let image: NSImage
-    let originImage: NSImage
-    weak var device: Device!
-    private(set) var linkURL:URL?
-    
-    lazy private(set) var attributeStr: NSMutableAttributedString = {
-        let name = "\(self.bundleDisplayName) - \(self.bundleShortVersion)(\(self.bundleVersion))"
-        let other = "\n\(self.bundleID)"
-        let att = NSMutableAttributedString(string: name + other)
-        att.addAttributes([NSAttributedString.Key.font: NSFont.systemFont(ofSize: 13)], range: NSRange(location: 0, length: name.count))
-        att.addAttributes([NSAttributedString.Key.font: NSFont.systemFont(ofSize: 11), NSAttributedString.Key.foregroundColor: NSColor.lightGray], range: NSRange(location: name.count, length: other.count))
-        return att
-    }()
-    
-    init?(bundleID: String, bundleDirUrl: URL, sandboxDirUrl: URL) {
-        self.bundleID = bundleID
-        self.bundleDirUrl = bundleDirUrl
-        self.sandboxDirUrl = sandboxDirUrl
-        
-        guard let contents = try? FileManager.default.contentsOfDirectory(at: bundleDirUrl, includingPropertiesForKeys: nil, options: [.skipsSubdirectoryDescendants, .skipsHiddenFiles])
-            else {
-                return nil
-        }
-        
-        var appURLTemp: URL?
-        for url in contents{
-            if url.pathExtension == "app" {
-                appURLTemp = url
-                break
-            }
-        }
-        guard let appURL = appURLTemp else { return nil }
-        self.appUrl = appURL
-        
-        let appInfoURL = appURL.appendingPathComponent("Info.plist")
-        guard let appInfoDict = NSDictionary(contentsOf: appInfoURL),
-            let aBundleID = appInfoDict["CFBundleIdentifier"] as? String,
-            let aBundleDisplayName = (appInfoDict["CFBundleDisplayName"] as? String) ?? (appInfoDict["CFBundleName"] as? String),
-            aBundleID == bundleID else {
-                return nil
-        }
-        bundleDisplayName = aBundleDisplayName
-        
-        let aBundleShortVersion = appInfoDict["CFBundleShortVersionString"] as? String ?? "NULL"
-        let aBundleVersion = appInfoDict["CFBundleVersion"] as? String ?? "NULL"
-        bundleShortVersion = aBundleShortVersion
-        bundleVersion = aBundleVersion
-        
-        var iconFiles = ((appInfoDict["CFBundleIcons"] as? NSDictionary)?["CFBundlePrimaryIcon"] as? NSDictionary)?["CFBundleIconFiles"] as? [String]
-        if iconFiles == nil {
-            iconFiles = ["Icon.png"]
-        }
-        if let imageStr = iconFiles?.last,
-            let bundle = Bundle(url: appUrl),
-            let im = bundle.image(forResource: imageStr) {
-            originImage = im
-            image = im.appIcon()
-        }else{
-            originImage = appOriginImage
-            image = appImage
-        }
-    }
-}
+  let bundleID: String
+  let bundleDirUrl: URL  //.app文件所在目录URL
+  let sandboxDirUrl: URL  //沙盒文件目录URL
+  let appUrl: URL  //.app 的url
+  let bundleDisplayName: String
+  let bundleShortVersion: String
+  let bundleVersion: String
+  let image: NSImage
+  let originImage: NSImage
+  weak var device: Device!
+  private(set) var linkURL: URL?
+  private var cachedTotalSize: UInt64?
 
+  var totalSize: UInt64 {
+    if let cached = cachedTotalSize {
+      return cached
+    }
+    let total = sizeOfDirectory(sandboxDirUrl) + sizeOfDirectory(bundleDirUrl)
+    cachedTotalSize = total
+    return total
+  }
+
+  var formattedTotalSize: String {
+    return ByteCountFormatter.string(fromByteCount: Int64(totalSize), countStyle: .file)
+  }
+
+  lazy private(set) var attributeStr: NSMutableAttributedString = {
+    let name = "\(self.bundleDisplayName) - \(self.bundleShortVersion)(\(self.bundleVersion))"
+    let sizeSuffix = "  (\(self.formattedTotalSize))"
+    let other = "\n\(self.bundleID)"
+    let att = NSMutableAttributedString(string: name + sizeSuffix + other)
+    att.addAttributes(
+      [NSAttributedString.Key.font: NSFont.systemFont(ofSize: 13)],
+      range: NSRange(location: 0, length: name.count))
+    att.addAttributes(
+      [
+        NSAttributedString.Key.font: NSFont.menuFont(ofSize: 11),
+        NSAttributedString.Key.foregroundColor: NSColor.secondaryLabelColor,
+      ], range: NSRange(location: name.count, length: sizeSuffix.count))
+    att.addAttributes(
+      [NSAttributedString.Key.font: NSFont.systemFont(ofSize: 11)],
+      range: NSRange(location: name.count + sizeSuffix.count, length: other.count))
+    return att
+  }()
+
+  init?(bundleID: String, bundleDirUrl: URL, sandboxDirUrl: URL) {
+    self.bundleID = bundleID
+    self.bundleDirUrl = bundleDirUrl
+    self.sandboxDirUrl = sandboxDirUrl
+
+    guard
+      let contents = try? FileManager.default.contentsOfDirectory(
+        at: bundleDirUrl, includingPropertiesForKeys: nil,
+        options: [.skipsSubdirectoryDescendants, .skipsHiddenFiles])
+    else {
+      return nil
+    }
+
+    var appURLTemp: URL?
+    for url in contents {
+      if url.pathExtension == "app" {
+        appURLTemp = url
+        break
+      }
+    }
+    guard let appURL = appURLTemp else { return nil }
+    self.appUrl = appURL
+
+    let appInfoURL = appURL.appendingPathComponent("Info.plist")
+    guard let appInfoDict = NSDictionary(contentsOf: appInfoURL),
+      let aBundleID = appInfoDict["CFBundleIdentifier"] as? String,
+      let aBundleDisplayName = (appInfoDict["CFBundleDisplayName"] as? String)
+        ?? (appInfoDict["CFBundleName"] as? String),
+      aBundleID == bundleID
+    else {
+      return nil
+    }
+    bundleDisplayName = aBundleDisplayName
+
+    let aBundleShortVersion = appInfoDict["CFBundleShortVersionString"] as? String ?? "NULL"
+    let aBundleVersion = appInfoDict["CFBundleVersion"] as? String ?? "NULL"
+    bundleShortVersion = aBundleShortVersion
+    bundleVersion = aBundleVersion
+
+    var iconFiles =
+      ((appInfoDict["CFBundleIcons"] as? NSDictionary)?["CFBundlePrimaryIcon"] as? NSDictionary)?[
+        "CFBundleIconFiles"] as? [String]
+    if iconFiles == nil {
+      iconFiles = ["Icon.png"]
+    }
+    if let imageStr = iconFiles?.last,
+      let bundle = Bundle(url: appUrl),
+      let im = bundle.image(forResource: imageStr)
+    {
+      originImage = im
+      image = im.appIcon()
+    } else {
+      originImage = appOriginImage
+      image = appImage
+    }
+  }
+}
 
 // MARK: - Application Action
 extension Application {
-    
-    func launch() {
-        if device.state == .shutdown {
-            try? device.boot()
-        }
-        shell("/usr/bin/xcrun", arguments: "simctl", "launch", device.udid, bundleID)
-    }
-    
-    func terminate() {
-        shell("/usr/bin/xcrun", arguments: "simctl", "terminate", device.udid, bundleID)
-    }
-    
-    func uninstall() {
-        self.terminate()
-        shell("/usr/bin/xcrun", arguments: "simctl", "uninstall", device.udid, bundleID)
-    }
-    
-    func resetContent() {
-        let contents = try? FileManager.default.contentsOfDirectory(at: sandboxDirUrl, includingPropertiesForKeys: [], options: [.skipsHiddenFiles, .skipsPackageDescendants, .skipsSubdirectoryDescendants])
-        contents?.forEach({ (url) in
-            try? FileManager.default.removeItem(at: url)
-        })
-    }
-    
-    func sendPushNotification(payloadURL: URL) {
-        if device.state == .shutdown {
-            try? device.boot()
-        }
-        shell("/usr/bin/xcrun", arguments: "simctl", "push", device.udid, bundleID, payloadURL.path)
-    }
 
-    // MARK: - Sandbox Snapshots
-    var snapshotsDirectoryURL: URL {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let dir = appSupport.appendingPathComponent("iSimulator/Snapshots").appendingPathComponent(bundleID)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
-        return dir
+  func launch() {
+    if device.state == .shutdown {
+      try? device.boot()
     }
+    shell("/usr/bin/xcrun", arguments: "simctl", "launch", device.udid, bundleID)
+  }
 
-    func listSnapshots() -> [String] {
-        let contents = (try? FileManager.default.contentsOfDirectory(at: snapshotsDirectoryURL, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
-        return contents.map { $0.lastPathComponent }
-    }
+  func terminate() {
+    shell("/usr/bin/xcrun", arguments: "simctl", "terminate", device.udid, bundleID)
+  }
 
-    func saveSnapshot(named name: String) {
-        let snapshotURL = snapshotsDirectoryURL.appendingPathComponent(name)
-        if FileManager.default.fileExists(atPath: snapshotURL.path) {
-            try? FileManager.default.removeItem(at: snapshotURL)
-        }
-        try? FileManager.default.copyItem(at: sandboxDirUrl, to: snapshotURL)
-    }
+  func uninstall() {
+    self.terminate()
+    shell("/usr/bin/xcrun", arguments: "simctl", "uninstall", device.udid, bundleID)
+  }
 
-    func restoreSnapshot(named name: String) {
-        let snapshotURL = snapshotsDirectoryURL.appendingPathComponent(name)
-        guard FileManager.default.fileExists(atPath: snapshotURL.path) else { return }
-        
-        terminate()
-        resetContent()
-        
-        let contents = (try? FileManager.default.contentsOfDirectory(at: snapshotURL, includingPropertiesForKeys: nil, options: [])) ?? []
-        contents.forEach { itemURL in
-            let destURL = sandboxDirUrl.appendingPathComponent(itemURL.lastPathComponent)
-            try? FileManager.default.copyItem(at: itemURL, to: destURL)
-        }
-    }
+  func resetContent() {
+    let contents = try? FileManager.default.contentsOfDirectory(
+      at: sandboxDirUrl, includingPropertiesForKeys: [],
+      options: [.skipsHiddenFiles, .skipsPackageDescendants, .skipsSubdirectoryDescendants])
+    contents?.forEach({ (url) in
+      try? FileManager.default.removeItem(at: url)
+    })
+  }
 
-    func deleteSnapshot(named name: String) {
-        let snapshotURL = snapshotsDirectoryURL.appendingPathComponent(name)
-        try? FileManager.default.removeItem(at: snapshotURL)
+  func sendPushNotification(payloadURL: URL) {
+    if device.state == .shutdown {
+      try? device.boot()
     }
-    
-    // MARK: - Privacy & Permissions
-    enum PrivacyService: String, CaseIterable {
-        case all = "all"
-        case camera = "camera"
-        case photos = "photos"
-        case contacts = "contacts"
-        case microphone = "microphone"
-        case location = "location"
-        case calendar = "calendar"
-        case reminders = "reminders"
-        
-        var displayName: String {
-            switch self {
-            case .all: return "All Permissions"
-            case .camera: return "Camera"
-            case .photos: return "Photos"
-            case .contacts: return "Contacts"
-            case .microphone: return "Microphone"
-            case .location: return "Location"
-            case .calendar: return "Calendar"
-            case .reminders: return "Reminders"
-            }
-        }
-    }
+    shell("/usr/bin/xcrun", arguments: "simctl", "push", device.udid, bundleID, payloadURL.path)
+  }
 
-    enum PrivacyAction: String {
-        case grant
-        case deny
-        case reset
-        
-        var displayName: String {
-            switch self {
-            case .grant: return "Grant"
-            case .deny: return "Deny"
-            case .reset: return "Reset"
-            }
-        }
-    }
+  // MARK: - Sandbox Snapshots
+  var snapshotsDirectoryURL: URL {
+    let appSupport = FileManager.default.urls(
+      for: .applicationSupportDirectory, in: .userDomainMask
+    ).first!
+    let dir = appSupport.appendingPathComponent("iSimulator/Snapshots").appendingPathComponent(
+      bundleID)
+    try? FileManager.default.createDirectory(
+      at: dir, withIntermediateDirectories: true, attributes: nil)
+    return dir
+  }
 
-    func setPrivacy(service: PrivacyService, action: PrivacyAction) {
-        shell("/usr/bin/xcrun", arguments: "simctl", "privacy", device.udid, action.rawValue, service.rawValue, bundleID)
+  func listSnapshots() -> [String] {
+    let contents =
+      (try? FileManager.default.contentsOfDirectory(
+        at: snapshotsDirectoryURL, includingPropertiesForKeys: [.isDirectoryKey],
+        options: [.skipsHiddenFiles])) ?? []
+    return contents.map { $0.lastPathComponent }
+  }
+
+  func saveSnapshot(named name: String) {
+    let snapshotURL = snapshotsDirectoryURL.appendingPathComponent(name)
+    if FileManager.default.fileExists(atPath: snapshotURL.path) {
+      try? FileManager.default.removeItem(at: snapshotURL)
     }
-    
-    func size(_ closure: @escaping (_ sandboxSize: UInt64, _ bundleSize: UInt64)-> Void) {
-        DispatchQueue.global().async {
-            //            closure(self.sizeOfDirectory(self.sandboxDirUrl), self.sizeOfDirectory(self.bundleDirUrl))
-        }
+    try? FileManager.default.copyItem(at: sandboxDirUrl, to: snapshotURL)
+  }
+
+  func restoreSnapshot(named name: String) {
+    let snapshotURL = snapshotsDirectoryURL.appendingPathComponent(name)
+    guard FileManager.default.fileExists(atPath: snapshotURL.path) else { return }
+
+    terminate()
+    resetContent()
+
+    let contents =
+      (try? FileManager.default.contentsOfDirectory(
+        at: snapshotURL, includingPropertiesForKeys: nil, options: [])) ?? []
+    contents.forEach { itemURL in
+      let destURL = sandboxDirUrl.appendingPathComponent(itemURL.lastPathComponent)
+      try? FileManager.default.copyItem(at: itemURL, to: destURL)
     }
-    
-    private func sizeOfDirectory(_ dir: URL) -> UInt64 {
-        var size: UInt64 = 0
-        let filesEnumerator = FileManager.default.enumerator(at: dir, includingPropertiesForKeys: nil, options: [], errorHandler: { (url, error) -> Bool in
-            return true
-        })
-        while let fileUrl = filesEnumerator?.nextObject() as? URL {
-            let attributes = try? FileManager.default.attributesOfItem(atPath: fileUrl.path) as NSDictionary
-            size += attributes?.fileSize() ?? 0
-        }
-        return size
+  }
+
+  func deleteSnapshot(named name: String) {
+    let snapshotURL = snapshotsDirectoryURL.appendingPathComponent(name)
+    try? FileManager.default.removeItem(at: snapshotURL)
+  }
+
+  // MARK: - Privacy & Permissions
+  enum PrivacyService: String, CaseIterable {
+    case all = "all"
+    case camera = "camera"
+    case photos = "photos"
+    case contacts = "contacts"
+    case microphone = "microphone"
+    case location = "location"
+    case calendar = "calendar"
+    case reminders = "reminders"
+
+    var displayName: String {
+      switch self {
+      case .all: return "All Permissions"
+      case .camera: return "Camera"
+      case .photos: return "Photos"
+      case .contacts: return "Contacts"
+      case .microphone: return "Microphone"
+      case .location: return "Location"
+      case .calendar: return "Calendar"
+      case .reminders: return "Reminders"
+      }
     }
+  }
+
+  enum PrivacyAction: String {
+    case grant
+    case deny
+    case reset
+
+    var displayName: String {
+      switch self {
+      case .grant: return "Grant"
+      case .deny: return "Deny"
+      case .reset: return "Reset"
+      }
+    }
+  }
+
+  func setPrivacy(service: PrivacyService, action: PrivacyAction) {
+    shell(
+      "/usr/bin/xcrun", arguments: "simctl", "privacy", device.udid, action.rawValue,
+      service.rawValue, bundleID)
+  }
+
+  func size(_ closure: @escaping (_ sandboxSize: UInt64, _ bundleSize: UInt64) -> Void) {
+    DispatchQueue.global(qos: .utility).async {
+      let sandboxSize = self.sizeOfDirectory(self.sandboxDirUrl)
+      let bundleSize = self.sizeOfDirectory(self.bundleDirUrl)
+      DispatchQueue.main.async {
+        closure(sandboxSize, bundleSize)
+      }
+    }
+  }
+
+  private func sizeOfDirectory(_ dir: URL) -> UInt64 {
+    let fm = FileManager.default
+    guard fm.fileExists(atPath: dir.path) else { return 0 }
+    let resourceKeys: Set<URLResourceKey> = [
+      .isRegularFileKey, .totalFileAllocatedSizeKey, .fileSizeKey,
+    ]
+    guard
+      let enumerator = fm.enumerator(
+        at: dir,
+        includingPropertiesForKeys: Array(resourceKeys),
+        options: [],
+        errorHandler: { _, _ in true }
+      )
+    else {
+      return 0
+    }
+    var size: UInt64 = 0
+    for case let fileUrl as URL in enumerator {
+      guard let values = try? fileUrl.resourceValues(forKeys: resourceKeys),
+        values.isRegularFile == true
+      else {
+        continue
+      }
+      if let allocated = values.totalFileAllocatedSize {
+        size += UInt64(allocated)
+      } else if let fileSize = values.fileSize {
+        size += UInt64(fileSize)
+      }
+    }
+    return size
+  }
 }
 
 // MARK: - 虚拟文件夹创建/删除
 extension Application {
-    
-    func createLinkDir() {
-        guard self.linkURL == nil else {
-            return
-        }
-        var url = RootLink.url
-        url.appendPathComponent(self.device.runtime.name)
-        let duplicateDeviceNames = self.device.runtime.devices.map{$0.name}.divideDuplicates().duplicates
-        if duplicateDeviceNames.contains(self.device.name) {
-            url.appendPathComponent("\(self.device.name)_\(self.device.udid)")
-        }else{
-            url.appendPathComponent(device.name)
-        }
-        let duplicateAppNames = device.applications.map{$0.bundleDisplayName}.divideDuplicates().duplicates
-        if duplicateAppNames.contains(self.bundleDisplayName) {
-            url.appendPathComponent("\(self.bundleDisplayName)_\(self.bundleID)")
-        }else{
-            url.appendPathComponent(self.bundleDisplayName)
-        }
-        do {
-            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-            self.linkURL = url
-        } catch {
-            return
-        }
-        let bundleURL = url.appendingPathComponent("Bundle")
-        let sandboxURL = url.appendingPathComponent("Sandbox")
-        createSymbolicLink(at: bundleURL, withDestinationURL: self.bundleDirUrl)
-        createSymbolicLink(at: sandboxURL, withDestinationURL: self.sandboxDirUrl)
-        /*
-         ❌❌
-         options:0 or excludeQuickDrawElementsIconCreationOption会造成内存飙升，内存泄漏
-         options:exclude10_4ElementsIconCreationOption 无上述问题，但是显示效果不太好
-         https://apple.stackexchange.com/questions/6901/how-can-i-change-a-file-or-folder-icon-using-the-terminal
-         http://codefromabove.com/2015/03/programmatically-adding-an-icon-to-a-folder-or-file/
-         */
-        NSWorkspace.shared.setIcon(self.originImage, forFile: url.path, options:[])
+
+  func createLinkDir() {
+    guard self.linkURL == nil else {
+      return
     }
-    
+    var url = RootLink.url
+    url.appendPathComponent(self.device.runtime.name)
+    let duplicateDeviceNames = self.device.runtime.devices.map { $0.name }.divideDuplicates()
+      .duplicates
+    if duplicateDeviceNames.contains(self.device.name) {
+      url.appendPathComponent("\(self.device.name)_\(self.device.udid)")
+    } else {
+      url.appendPathComponent(device.name)
+    }
+    let duplicateAppNames = device.applications.map { $0.bundleDisplayName }.divideDuplicates()
+      .duplicates
+    if duplicateAppNames.contains(self.bundleDisplayName) {
+      url.appendPathComponent("\(self.bundleDisplayName)_\(self.bundleID)")
+    } else {
+      url.appendPathComponent(self.bundleDisplayName)
+    }
+    do {
+      try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+      self.linkURL = url
+    } catch {
+      return
+    }
+    let bundleURL = url.appendingPathComponent("Bundle")
+    let sandboxURL = url.appendingPathComponent("Sandbox")
+    createSymbolicLink(at: bundleURL, withDestinationURL: self.bundleDirUrl)
+    createSymbolicLink(at: sandboxURL, withDestinationURL: self.sandboxDirUrl)
     /*
-     1. createSymbolicLink的时候，要先做判断，已经存在则不处理。
-     2. 对于Apple Watch模拟器，当调试/安装App的时候，（可能）会形成一个新的App，App的UDID不同。
-     所以新的App和之前App的bundleDirUrl、sandboxDirUrl均不同，但却是同一个App，也就是我们要创建的虚拟文件
-     bundleURL、sandboxURL却相同，这时候createSymbolicLink方法会报错（文件已经存在，无法创建），也就是无法更
-     新到新的连接，重新创建link的时候，先remove
+     ❌❌
+     options:0 or excludeQuickDrawElementsIconCreationOption会造成内存飙升，内存泄漏
+     options:exclude10_4ElementsIconCreationOption 无上述问题，但是显示效果不太好
+     https://apple.stackexchange.com/questions/6901/how-can-i-change-a-file-or-folder-icon-using-the-terminal
+     http://codefromabove.com/2015/03/programmatically-adding-an-icon-to-a-folder-or-file/
      */
-    private func createSymbolicLink(at url: URL, withDestinationURL destURL: URL) {
-        if let destinationUrlPath = try? FileManager.default.destinationOfSymbolicLink(atPath: url.path),
-            destinationUrlPath == destURL.path{
-            return
-        }
-        try? FileManager.default.removeItem(at: url)
-        try? FileManager.default.createSymbolicLink(at: url, withDestinationURL: destURL)
+    NSWorkspace.shared.setIcon(self.originImage, forFile: url.path, options: [])
+  }
+
+  /*
+   1. createSymbolicLink的时候，要先做判断，已经存在则不处理。
+   2. 对于Apple Watch模拟器，当调试/安装App的时候，（可能）会形成一个新的App，App的UDID不同。
+   所以新的App和之前App的bundleDirUrl、sandboxDirUrl均不同，但却是同一个App，也就是我们要创建的虚拟文件
+   bundleURL、sandboxURL却相同，这时候createSymbolicLink方法会报错（文件已经存在，无法创建），也就是无法更
+   新到新的连接，重新创建link的时候，先remove
+   */
+  private func createSymbolicLink(at url: URL, withDestinationURL destURL: URL) {
+    if let destinationUrlPath = try? FileManager.default.destinationOfSymbolicLink(
+      atPath: url.path),
+      destinationUrlPath == destURL.path
+    {
+      return
     }
-    
-    /*
-     如上原因：Apple Watch模拟器调试安装App的时候，新的APP和以前的APP UDID不同，但是虚拟文件却一样。
-     因为新的APP安装的时候，会更新虚拟文件
-     所以，remove的时候，做进一步的判断，防止remove掉新的APP虚拟文件。
-     */
-    func removeLinkDir() {
-        guard let url = self.linkURL else {
-            return
-        }
-        let bundleURL = url.appendingPathComponent("Bundle")
-        if let destinationUrlPath = try? FileManager.default.destinationOfSymbolicLink(atPath: bundleURL.path),
-            FileManager.default.fileExists(atPath: destinationUrlPath){
-            return
-        }
-        try? FileManager.default.removeItem(at: url)
+    try? FileManager.default.removeItem(at: url)
+    try? FileManager.default.createSymbolicLink(at: url, withDestinationURL: destURL)
+  }
+
+  /*
+   如上原因：Apple Watch模拟器调试安装App的时候，新的APP和以前的APP UDID不同，但是虚拟文件却一样。
+   因为新的APP安装的时候，会更新虚拟文件
+   所以，remove的时候，做进一步的判断，防止remove掉新的APP虚拟文件。
+   */
+  func removeLinkDir() {
+    guard let url = self.linkURL else {
+      return
     }
+    let bundleURL = url.appendingPathComponent("Bundle")
+    if let destinationUrlPath = try? FileManager.default.destinationOfSymbolicLink(
+      atPath: bundleURL.path),
+      FileManager.default.fileExists(atPath: destinationUrlPath)
+    {
+      return
+    }
+    try? FileManager.default.removeItem(at: url)
+  }
 }
