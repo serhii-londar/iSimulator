@@ -34,13 +34,28 @@ Arguments:
                         If omitted, version is automatically read from Xcode project (MARKETING_VERSION).
 
 Options:
-  --notes <text>        Release notes text
-  --notes-file <file>   Path to file containing release notes
-  --draft               Save release as draft on GitHub
-  --prerelease          Mark release as pre-release on GitHub
-  --skip-tag            Skip git tag creation and pushing
-  --dry-run             Build and package without creating Git tag or GitHub release
-  -h, --help            Show this help message
+  --notes <text>          Release notes text
+  --notes-file <file>     Path to file containing release notes
+  --draft                 Save release as draft on GitHub
+  --prerelease            Mark release as pre-release on GitHub
+  --skip-tag              Skip git tag creation and pushing
+  --sign-identity <name>  Developer ID Application signing identity (or set DEVELOPER_ID_APPLICATION)
+  --notarize              Notarize and staple the app using xcrun notarytool
+  --dry-run               Build and package without creating Git tag or GitHub release
+  -h, --help              Show this help message
+
+Notarization Environment Variables:
+  DEVELOPER_ID_APPLICATION   Signing identity (e.g. "Developer ID Application: Name (TEAMID)")
+  Option 1 (App Store Connect API Key):
+    NOTARY_KEY_ID            App Store Connect API Key ID
+    NOTARY_ISSUER_ID         App Store Connect Issuer ID
+    NOTARY_KEY_PATH          Path to .p8 private key file (or NOTARY_KEY_BASE64)
+  Option 2 (Apple ID):
+    APPLE_ID                 Apple ID email
+    APPLE_TEAM_ID            Apple Developer Team ID
+    APPLE_APP_PASSWORD       App-specific password
+  Option 3 (Keychain Profile):
+    NOTARY_KEYCHAIN_PROFILE  Profile name stored via 'xcrun notarytool store-credentials'
 
 Examples:
   ./scripts/publish_release.sh                # Auto-detects version from Xcode project
@@ -58,6 +73,8 @@ IS_DRAFT=false
 IS_PRERELEASE=false
 SKIP_TAG=false
 DRY_RUN=false
+SIGN_IDENTITY="${DEVELOPER_ID_APPLICATION:-}"
+NOTARIZE=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -82,6 +99,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-tag)
             SKIP_TAG=true
+            shift
+            ;;
+        --sign-identity)
+            SIGN_IDENTITY="$2"
+            shift 2
+            ;;
+        --notarize)
+            NOTARIZE=true
             shift
             ;;
         --dry-run)
@@ -173,9 +198,75 @@ fi
 
 success "Successfully built iSimulator.app"
 
-# Step 2: Code Sign & Package
-info "Signing application (ad-hoc)..."
-codesign --force --deep --sign - "$APP_PATH" || warn "Ad-hoc code signing failed, proceeding anyway."
+# Step 2: Code Sign, Notarize & Package
+has_notary_credentials() {
+    [[ -n "${NOTARY_KEYCHAIN_PROFILE:-}" ]] && return 0
+    [[ -n "${NOTARY_KEY_ID:-}" && -n "${NOTARY_ISSUER_ID:-}" && ( -n "${NOTARY_KEY_PATH:-}" || -n "${NOTARY_KEY_BASE64:-}" ) ]] && return 0
+    [[ -n "${APPLE_ID:-}" && -n "${APPLE_TEAM_ID:-}" && -n "${APPLE_APP_PASSWORD:-}" ]] && return 0
+    return 1
+}
+
+if [[ "$NOTARIZE" == false && -n "$SIGN_IDENTITY" ]] && has_notary_credentials; then
+    NOTARIZE=true
+fi
+
+if [[ -n "$SIGN_IDENTITY" && "$SIGN_IDENTITY" != "-" ]]; then
+    info "Signing application with Developer ID: $SIGN_IDENTITY..."
+    codesign --force --deep --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP_PATH"
+    codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+    success "Successfully signed iSimulator.app"
+else
+    if [[ "$NOTARIZE" == true ]]; then
+        error "Notarization requires a Developer ID Application signing identity (--sign-identity or DEVELOPER_ID_APPLICATION)."
+    fi
+    info "Signing application (ad-hoc)..."
+    codesign --force --deep --sign - "$APP_PATH" || warn "Ad-hoc code signing failed, proceeding anyway."
+fi
+
+if [[ "$NOTARIZE" == true ]]; then
+    info "Notarizing iSimulator.app..."
+    NOTARY_ZIP="$BUILD_DIR/iSimulator-notarize.zip"
+    TEMP_KEY_FILE=""
+
+    cleanup_notary() {
+        rm -f "$NOTARY_ZIP"
+        if [[ -n "$TEMP_KEY_FILE" && -f "$TEMP_KEY_FILE" ]]; then
+            rm -f "$TEMP_KEY_FILE"
+        fi
+    }
+    trap cleanup_notary EXIT
+
+    ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$NOTARY_ZIP"
+
+    NOTARY_ARGS=("submit" "$NOTARY_ZIP" "--wait")
+    if [[ -n "${NOTARY_KEYCHAIN_PROFILE:-}" ]]; then
+        NOTARY_ARGS+=("--keychain-profile" "$NOTARY_KEYCHAIN_PROFILE")
+    elif [[ -n "${NOTARY_KEY_ID:-}" && -n "${NOTARY_ISSUER_ID:-}" && ( -n "${NOTARY_KEY_PATH:-}" || -n "${NOTARY_KEY_BASE64:-}" ) ]]; then
+        KEY_FILE="${NOTARY_KEY_PATH:-}"
+        if [[ -z "$KEY_FILE" && -n "${NOTARY_KEY_BASE64:-}" ]]; then
+            TEMP_KEY_FILE="$BUILD_DIR/AuthKey_${NOTARY_KEY_ID}.p8"
+            echo "$NOTARY_KEY_BASE64" | base64 --decode > "$TEMP_KEY_FILE"
+            KEY_FILE="$TEMP_KEY_FILE"
+        fi
+        NOTARY_ARGS+=("--key" "$KEY_FILE" "--key-id" "$NOTARY_KEY_ID" "--issuer" "$NOTARY_ISSUER_ID")
+    elif [[ -n "${APPLE_ID:-}" && -n "${APPLE_TEAM_ID:-}" && -n "${APPLE_APP_PASSWORD:-}" ]]; then
+        NOTARY_ARGS+=("--apple-id" "$APPLE_ID" "--team-id" "$APPLE_TEAM_ID" "--password" "$APPLE_APP_PASSWORD")
+    else
+        error "Notarization requested, but no notarization credentials were provided."
+    fi
+
+    xcrun notarytool "${NOTARY_ARGS[@]}"
+    success "Notarization succeeded!"
+
+    info "Stapling notarization ticket to iSimulator.app..."
+    xcrun stapler staple "$APP_PATH"
+    xcrun stapler validate "$APP_PATH"
+    spctl --assess --type execute --verbose "$APP_PATH"
+    success "Stapled and verified iSimulator.app"
+
+    cleanup_notary
+    trap - EXIT
+fi
 
 info "Creating zip archives..."
 cd "$BUILD_DIR/DerivedData/Build/Products/Release"
