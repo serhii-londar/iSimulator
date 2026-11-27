@@ -32,6 +32,7 @@ class DeviceMenuItem: NSMenuItem {
     self.state = device.state == .shutdown ? .off : .on
     self.submenu = NSMenu()
     let storageHeader = NSMenuItem(title: "Storage", action: nil, keyEquivalent: "")
+    storageHeader.isEnabled = false
     self.submenu?.addItem(storageHeader)
     let totalSizeItem = NSMenuItem(
       title: "Simulator Size: \(device.formattedTotalSize)", action: nil, keyEquivalent: "")
@@ -43,7 +44,9 @@ class DeviceMenuItem: NSMenuItem {
     self.submenu?.addItem(dataSizeItem)
     self.submenu?.addItem(NSMenuItem.separator())
     if !device.applications.isEmpty {
-      self.submenu?.addItem(NSMenuItem.init(title: "Application", action: nil, keyEquivalent: ""))
+      let appHeader = NSMenuItem.init(title: "Application", action: nil, keyEquivalent: "")
+      appHeader.isEnabled = false
+      self.submenu?.addItem(appHeader)
       device.applications.forEach({ (app) in
         self.submenu?.addItem(AppMenuItem(app))
       })
@@ -71,6 +74,8 @@ private func createDeviceActionItems(_ device: Device) -> [NSMenuItem] {
   let actionTypes: [DeviceActionable.Type] = [
     DevicePinAction.self,
     DeviceStateAction.self,
+    DeviceScreenshotAction.self,
+    DeviceCopyUDIDAction.self,
     DeviceUnpairAction.self,
     DeviceEraseAction.self,
     DeviceDeleteAction.self,
@@ -178,7 +183,9 @@ private func createDeviceActionItems(_ device: Device) -> [NSMenuItem] {
     }
     pairItem.submenu = submenu
   }
-  items.insert(NSMenuItem.init(title: "Simulator Action", action: nil, keyEquivalent: ""), at: 0)
+  let actionHeader = NSMenuItem.init(title: "Simulator Action", action: nil, keyEquivalent: "")
+  actionHeader.isEnabled = false
+  items.insert(actionHeader, at: 0)
   return items
 }
 
@@ -217,7 +224,7 @@ class DevicePairAction: DeviceActionable {
   required init(device: Device, watchDevice: Device) {
     self.device = device
     self.watchDevice = watchDevice
-    self.title = device.name
+    self.title = watchDevice.name
   }
 
   @objc func perform() {
@@ -267,11 +274,19 @@ class DeviceStateAction: DeviceActionable {
   }
 
   @objc func perform() {
-    switch device.state {
-    case .booted:
-      try? device.shutdown()
-    case .shutdown:
-      try? device.boot()
+    let targetState = device.state
+    let targetDevice = device
+    DispatchQueue.global(qos: .userInitiated).async {
+      switch targetState {
+      case .booted:
+        try? targetDevice.shutdown()
+        ToastManager.shared.showToast(
+          message: "Shutdown \(targetDevice.name)", iconName: "power")
+      case .shutdown:
+        try? targetDevice.boot()
+        ToastManager.shared.showToast(
+          message: "Booted \(targetDevice.name)", iconName: "iphone")
+      }
     }
   }
 
@@ -477,12 +492,80 @@ class DeviceOpenURLAction: DeviceActionable {
     alert.addButton(withTitle: "Cancel")
 
     NSApp.activate(ignoringOtherApps: true)
+    DispatchQueue.main.async {
+      alert.window.makeFirstResponder(inputTextField)
+    }
     let response = alert.runModal()
     if response == .alertFirstButtonReturn {
       let urlString = inputTextField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
       if !urlString.isEmpty {
         UserDefaults.standard.set(urlString, forKey: "iSimulator.lastOpenedURL")
-        device.openURL(urlString)
+        let targetDevice = device
+        DispatchQueue.global(qos: .userInitiated).async {
+          targetDevice.openURL(urlString)
+          ToastManager.shared.showToast(
+            message: "\(targetDevice.name): Opened URL", iconName: "link")
+        }
+      }
+    }
+  }
+}
+
+class DeviceCopyUDIDAction: DeviceActionable {
+  let device: Device
+  let title: String = "Copy UDID"
+  var isAvailable: Bool = true
+  var icon: NSImage?
+
+  required init(_ device: Device) {
+    self.device = device
+    if #available(macOS 11.0, *) {
+      self.icon = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)
+    }
+  }
+
+  @objc func perform() {
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.setString(device.udid, forType: .string)
+    ToastManager.shared.showToast(
+      message: "Copied UDID for \(device.name)", iconName: "doc.on.doc.fill")
+  }
+}
+
+class DeviceScreenshotAction: DeviceActionable {
+  let device: Device
+  let title: String = "Take Screenshot (Copy)"
+  var isAvailable: Bool {
+    return device.state == .booted
+  }
+  var icon: NSImage?
+
+  required init(_ device: Device) {
+    self.device = device
+    if #available(macOS 11.0, *) {
+      self.icon = NSImage(systemSymbolName: "camera", accessibilityDescription: nil)
+    }
+  }
+
+  @objc func perform() {
+    let targetDevice = device
+    DispatchQueue.global(qos: .userInitiated).async {
+      let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+        "iSimulator_screenshot_\(UUID().uuidString).png")
+      _ = shell(
+        "/usr/bin/xcrun", arguments: "simctl", "io", targetDevice.udid, "screenshot", tempURL.path)
+      if let image = NSImage(contentsOf: tempURL) {
+        DispatchQueue.main.async {
+          NSPasteboard.general.clearContents()
+          NSPasteboard.general.writeObjects([image])
+        }
+        try? FileManager.default.removeItem(at: tempURL)
+        ToastManager.shared.showToast(
+          message: "\(targetDevice.name): Screenshot copied to clipboard",
+          iconName: "camera.fill")
+      } else {
+        ToastManager.shared.showToast(
+          message: "Failed to capture screenshot", iconName: "exclamationmark.triangle.fill")
       }
     }
   }

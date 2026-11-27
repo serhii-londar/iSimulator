@@ -36,12 +36,16 @@ struct VisualEffectView: NSViewRepresentable {
 }
 
 @available(macOS 11.0, *)
-struct CommandPaletteView: View {
-  @State private var searchText: String = ""
-  @State private var selectedIndex: Int = 0
-  let onDismiss: () -> Void
+class CommandPaletteViewModel: ObservableObject {
+  @Published var searchText: String = "" {
+    didSet {
+      selectedIndex = 0
+    }
+  }
+  @Published var selectedIndex: Int = 0
+  @Published var items: [CommandPaletteItem] = []
 
-  @State private var items: [CommandPaletteItem] = []
+  var onDismiss: (() -> Void)?
 
   var filteredItems: [CommandPaletteItem] {
     if searchText.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -54,6 +58,120 @@ struct CommandPaletteView: View {
     }
   }
 
+  func moveSelectionUp() {
+    let count = filteredItems.count
+    guard count > 0 else { return }
+    selectedIndex = max(0, selectedIndex - 1)
+  }
+
+  func moveSelectionDown() {
+    let count = filteredItems.count
+    guard count > 0 else { return }
+    selectedIndex = min(count - 1, selectedIndex + 1)
+  }
+
+  func executeSelected() {
+    let current = filteredItems
+    guard selectedIndex >= 0, selectedIndex < current.count else { return }
+    let item = current[selectedIndex]
+    onDismiss?()
+    item.action()
+  }
+
+  func loadItems() {
+    var result: [CommandPaletteItem] = []
+    TotalModel.default.update()
+
+    TotalModel.default.runtimes.forEach { runtime in
+      runtime.devices.forEach { device in
+        let isBooted = device.state == .booted
+
+        // Device Action
+        result.append(
+          CommandPaletteItem(
+            title: device.name,
+            subtitle:
+              "\(isBooted ? "Shutdown" : "Boot") • \(runtime.name) • \(device.formattedTotalSize)",
+            iconName: isBooted ? "iphone" : "iphone.slash",
+            category: "Simulator",
+            isBooted: isBooted,
+            action: {
+              DispatchQueue.global(qos: .userInitiated).async {
+                if isBooted {
+                  try? device.shutdown()
+                  ToastManager.shared.showToast(
+                    message: "Shutdown \(device.name)", iconName: "power")
+                } else {
+                  try? device.boot()
+                  ToastManager.shared.showToast(
+                    message: "Booted \(device.name)", iconName: "iphone")
+                }
+              }
+            }
+          ))
+
+        // Device Applications
+        device.applications.forEach { app in
+          result.append(
+            CommandPaletteItem(
+              title: app.bundleDisplayName,
+              subtitle: "Launch • \(app.bundleID) • \(device.name)",
+              iconName: "app.fill",
+              category: "App",
+              isBooted: isBooted,
+              action: {
+                DispatchQueue.global(qos: .userInitiated).async {
+                  app.launch()
+                  ToastManager.shared.showToast(
+                    message: "Launched \(app.bundleDisplayName)", iconName: "play.fill")
+                }
+              }
+            ))
+        }
+      }
+    }
+
+    result.append(
+      CommandPaletteItem(
+        title: "Delete Unavailable Simulators",
+        subtitle: "Free disk space by removing unavailable CoreSimulator devices",
+        iconName: "trash",
+        category: "Action",
+        isBooted: nil,
+        action: {
+          DispatchQueue.global(qos: .userInitiated).async {
+            shell("/usr/bin/xcrun", arguments: "simctl", "delete", "unavailable")
+            BarManager.default.refresh()
+            ToastManager.shared.showToast(
+              message: "Deleted unavailable simulators", iconName: "trash.fill")
+          }
+        }
+      ))
+
+    result.append(
+      CommandPaletteItem(
+        title: "Preferences...",
+        subtitle: "Configure iSimulator data directory, shortcuts, and pinned items",
+        iconName: "gearshape",
+        category: "Action",
+        isBooted: nil,
+        action: {
+          DispatchQueue.main.async {
+            BarManager.default.openPreferences()
+          }
+        }
+      ))
+
+    self.items = result
+    self.selectedIndex = 0
+  }
+}
+
+@available(macOS 11.0, *)
+struct CommandPaletteView: View {
+  @ObservedObject var viewModel: CommandPaletteViewModel
+  let onDismiss: () -> Void
+
   var body: some View {
     VStack(spacing: 0) {
       // Search Input Header
@@ -62,12 +180,12 @@ struct CommandPaletteView: View {
           .font(.system(size: 18, weight: .medium))
           .foregroundColor(.secondary)
 
-        TextField("Search simulators, applications, or actions...", text: $searchText)
+        TextField("Search simulators, applications, or actions...", text: $viewModel.searchText)
           .textFieldStyle(PlainTextFieldStyle())
           .font(.system(size: 16, weight: .regular))
 
-        if !searchText.isEmpty {
-          Button(action: { searchText = "" }) {
+        if !viewModel.searchText.isEmpty {
+          Button(action: { viewModel.searchText = "" }) {
             Image(systemName: "xmark.circle.fill")
               .foregroundColor(.secondary)
           }
@@ -89,7 +207,8 @@ struct CommandPaletteView: View {
       Divider()
 
       // Results List
-      if filteredItems.isEmpty {
+      let filtered = viewModel.filteredItems
+      if filtered.isEmpty {
         VStack(spacing: 8) {
           Image(systemName: "circle.slash")
             .font(.system(size: 32))
@@ -103,7 +222,7 @@ struct CommandPaletteView: View {
       } else {
         ScrollViewReader { proxy in
           List {
-            ForEach(Array(filteredItems.enumerated()), id: \.element.id) { index, item in
+            ForEach(Array(filtered.enumerated()), id: \.element.id) { index, item in
               HStack(spacing: 12) {
                 Image(systemName: item.iconName)
                   .font(.system(size: 16))
@@ -132,17 +251,22 @@ struct CommandPaletteView: View {
               }
               .padding(.vertical, 4)
               .padding(.horizontal, 8)
-              .background(index == selectedIndex ? Color.accentColor.opacity(0.2) : Color.clear)
+              .background(
+                index == viewModel.selectedIndex ? Color.accentColor.opacity(0.2) : Color.clear
+              )
               .cornerRadius(8)
               .contentShape(Rectangle())
               .id(index)
               .onTapGesture {
-                item.action()
                 onDismiss()
+                item.action()
               }
             }
           }
           .listStyle(SidebarListStyle())
+          .onChange(of: viewModel.selectedIndex) { newIndex in
+            proxy.scrollTo(newIndex, anchor: .center)
+          }
         }
       }
 
@@ -167,7 +291,7 @@ struct CommandPaletteView: View {
         .buttonStyle(PlainButtonStyle())
 
         Spacer()
-        Text("\(filteredItems.count) items")
+        Text("\(filtered.count) items")
       }
       .font(.system(size: 11))
       .foregroundColor(.secondary)
@@ -185,55 +309,8 @@ struct CommandPaletteView: View {
       onDismiss()
     }
     .onAppear {
-      loadItems()
+      viewModel.onDismiss = onDismiss
+      viewModel.loadItems()
     }
-  }
-
-  private func loadItems() {
-    var result: [CommandPaletteItem] = []
-    TotalModel.default.update()
-
-    TotalModel.default.runtimes.forEach { runtime in
-      runtime.devices.forEach { device in
-        let isBooted = device.state == .booted
-
-        // Device Action
-        result.append(
-          CommandPaletteItem(
-            title: device.name,
-            subtitle:
-              "\(runtime.name) • \(isBooted ? "Booted" : "Shutdown") • \(device.formattedTotalSize)",
-            iconName: isBooted ? "iphone" : "iphone.slash",
-            category: "Simulator",
-            isBooted: isBooted,
-            action: {
-              if isBooted {
-                try? device.shutdown()
-              } else {
-                try? device.boot()
-              }
-            }
-          ))
-
-        // Device Applications
-        device.applications.forEach { app in
-          result.append(
-            CommandPaletteItem(
-              title: app.bundleDisplayName,
-              subtitle: "\(app.bundleID) • \(device.name)",
-              iconName: "app.fill",
-              category: "App",
-              isBooted: isBooted,
-              action: {
-                if let url = app.linkURL {
-                  NSWorkspace.shared.open(url)
-                }
-              }
-            ))
-        }
-      }
-    }
-
-    self.items = result
   }
 }
